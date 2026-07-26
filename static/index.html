@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fellow Calendar</title>
+    <link rel="stylesheet" href="style.css?v=5">
+
+    <!-- FullCalendar Kütüphanesi -->
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js'></script>
+</head>
+<body>
+
+    <!-- GİRİŞ / KAYIT EKRANI -->
+    <div id="auth-screen" class="container">
+        <h1>📅 Fellow Calendar</h1>
+        <p>Arkadaşlarınla plan yapmanın en kolay yolu.</p>
+
+        <div id="giris-formu" class="form-group">
+            <h3>Giriş Yap</h3>
+            <input type="email" id="giris-eposta" placeholder="E-Posta Adresi" aria-label="E-Posta Adresi">
+            <input type="password" id="giris-sifre" placeholder="Şifre" aria-label="Şifre">
+            <button onclick="girisYap()">Giriş Yap</button>
+            <p>Hesabın yok mu? <a href="#" onclick="ekraniDegistir('kayit-formu', 'giris-formu')">Kayıt Ol</a></p>
+        </div>
+
+        <div id="kayit-formu" class="form-group" style="display: none;">
+            <h3>Hesap Oluştur</h3>
+            <input type="text" id="isim" placeholder="İsim Soyisim" aria-label="İsim Soyisim">
+            <input type="email" id="eposta" placeholder="E-Posta Adresi" aria-label="E-Posta Adresi">
+            <input type="password" id="sifre" placeholder="Şifre (En az 8 kar., 1 Büyük, 1 Özel)" aria-label="Şifre">
+            <input type="password" id="sifre_tekrar" placeholder="Şifreyi Tekrar Girin" aria-label="Şifreyi Tekrar Girin">
+            <button onclick="kayitOl()">Kayıt Ol</button>
+            <p>Zaten hesabın var mı? <a href="#" onclick="ekraniDegistir('giris-formu', 'kayit-formu')">Giriş Yap</a></p>
+        </div>
+
+        <p id="mesaj" class="mesaj"></p>
+    </div>
+
+    <!-- ANA PANEL (Giriş yapınca açılacak) -->
+    <div id="dashboard-screen" style="display: none; padding: 20px;">
+        <nav class="navbar">
+            <h2 id="hosgeldin-yazisi">Hoş Geldin!</h2>
+            <button onclick="cikisYap()" class="btn-secondary">Çıkış Yap</button>
+        </nav>
+
+        <!-- Sütunlu Tasarım: Sol Takvim, Sağ Gruplar -->
+        <div class="dashboard-layout">
+
+            <!-- SOL TARAF: TAKVİM -->
+            <div class="left-panel card">
+                <h3>📅 Kişisel Takvimim</h3>
+                <div id="calendar"></div> <!-- FullCalendar buraya yüklenecek -->
+            </div>
+
+            <!-- SAĞ TARAF: GRUPLAR VE AYARLAR -->
+            <div class="right-panel">
+                <div class="card">
+                    <h3>👥 Arkadaş Gruplarım</h3>
+                    <p>Yeni grup kur veya davet linkiyle bir gruba katıl.</p>
+                    <button class="btn-primary" onclick="alert('Yeni grup kurma penceresi açılacak')">+ Yeni Grup Kur</button>
+                    <hr style="margin: 15px 0; border: 0; border-top: 1px solid #eee;">
+                    <ul id="grup-listesi" style="list-style: none; padding: 0;">
+                        <li>Lise Tayfası (Örnek)</li>
+                        <li>Halı Saha (Örnek)</li>
+                    </ul>
+                </div>
+
+                <div class="card">
+                    <h3>⚙️ Hesap Ayarları</h3>
+                    <p>Profil bilgilerini güncelle.</p>
+                    <button class="btn-secondary" style="background-color: #7f8c8d;">Ayarlara Git</button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script src="script.js?v=5"></script>
+</body>
+</html>

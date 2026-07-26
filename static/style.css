@@ -1,0 +1,116 @@
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Sayfa ortalaması yerine üstten boşluk bırakarak geniş ekranı destekliyoruz */
+body {
+    background-color: #f4f7f6;
+    color: #333;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start; /* EKRANIN ÇÖKMESİNİ ENGELLEYEN KRİTİK AYAR */
+    min-height: 100vh;
+    padding-top: 50px;
+}
+
+/* Giriş/Kayıt Kutusu */
+.container {
+    background-color: #fff;
+    padding: 40px;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    width: 100%;
+    max-width: 600px;
+    text-align: center;
+}
+
+h1 { color: #2c3e50; margin-bottom: 10px; }
+p { color: #7f8c8d; margin-bottom: 20px; }
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+input, select {
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 16px;
+}
+
+button {
+    background-color: #3498db;
+    color: white;
+    border: none;
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+button:hover { background-color: #2980b9; }
+.btn-primary { background-color: #3498db; width: 100%; margin-bottom: 10px; }
+.btn-secondary { background-color: #e74c3c; }
+.btn-secondary:hover { background-color: #c0392b; }
+.mesaj { margin-top: 15px; font-weight: bold; }
+
+/* --- DASHBOARD (ANA PANEL) TASARIMI --- */
+.navbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #ddd;
+}
+
+#dashboard-screen {
+    width: 100%;
+    max-width: 1200px; /* Ekran genişliği artırıldı */
+    margin: 0 auto;
+}
+
+.dashboard-layout {
+    display: flex;
+    gap: 25px;
+    align-items: flex-start;
+}
+
+/* Sol panel (Takvim) %65 genişlikte */
+.left-panel {
+    flex: 65%;
+    background: #fff;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+}
+
+/* Sağ panel (Gruplar) %35 genişlikte */
+.right-panel {
+    flex: 35%;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.card {
+    background: #fff;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    text-align: left;
+}
+
+.card h3 { color: #2c3e50; margin-bottom: 10px; }
+
+#calendar {
+    margin-top: 15px;
+    font-size: 14px;
+    min-height: 500px; /* Takvimin çökmesini engeller */
+}
