@@ -1,0 +1,269 @@
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Sayfa ortalaması yerine üstten boşluk bırakarak geniş ekranı destekliyoruz */
+body {
+    background-color: #f4f7f6;
+    color: #333;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start; /* EKRANIN ÇÖKMESİNİ ENGELLEYEN KRİTİK AYAR */
+    min-height: 100vh;
+    padding-top: 50px;
+}
+
+/* Giriş/Kayıt Kutusu */
+.container {
+    background-color: #fff;
+    padding: 40px;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    width: 100%;
+    max-width: 600px;
+    text-align: center;
+}
+
+h1 { color: #2c3e50; margin-bottom: 10px; }
+p { color: #7f8c8d; margin-bottom: 20px; }
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+input, select {
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 16px;
+}
+
+button {
+    background-color: #3498db;
+    color: white;
+    border: none;
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+button:hover { background-color: #2980b9; }
+.btn-primary { background-color: #3498db; width: 100%; margin-bottom: 10px; }
+.btn-secondary { background-color: #e74c3c; }
+.btn-secondary:hover { background-color: #c0392b; }
+.mesaj { margin-top: 15px; font-weight: bold; }
+
+/* --- DASHBOARD (ANA PANEL) TASARIMI --- */
+.navbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #ddd;
+}
+
+#dashboard-screen {
+    width: 100%;
+    max-width: 1200px; /* Ekran genişliği artırıldı */
+    margin: 0 auto;
+}
+
+.dashboard-layout {
+    display: flex;
+    gap: 25px;
+    align-items: flex-start;
+}
+
+/* Sol panel (Takvim) %65 genişlikte */
+.left-panel {
+    flex: 65%;
+    background: #fff;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+}
+
+/* Sağ panel (Gruplar) %35 genişlikte */
+.right-panel {
+    flex: 35%;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.card {
+    background: #fff;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    text-align: left;
+}
+
+.card h3 { color: #2c3e50; margin-bottom: 10px; }
+
+#calendar {
+    margin-top: 15px;
+    font-size: 14px;
+    min-height: 500px; /* Takvimin çökmesini engeller */
+}
+
+/* --- REACT-CALENDAR TEMİZ TASARIM --- */
+
+/* Sadece ana kapsayıcıyı %100 yapıyoruz, iç yapıya dokunmuyoruz */
+.react-calendar {
+    width: 100% !important;
+    max-width: 100% !important;
+    border: none !important; /* Dış çerçeveyi kaldırdık, kartın kendi çerçevesi yeterli */
+    font-family: inherit !important;
+}
+
+/* Gün hücrelerini (kutucukları) büyüt ve köşelerini yuvarlat */
+.react-calendar__tile {
+    height: 60px !important; /* Takvimin daha ferah görünmesi için */
+    border-radius: 8px !important;
+    font-size: 15px !important;
+    padding: 0 !important; /* Varsayılan iç boşluğu sıfırlıyoruz */
+}
+
+/* Günlerin üzerine gelindiğindeki efekt */
+.react-calendar__tile:enabled:hover,
+.react-calendar__tile:enabled:focus {
+    background-color: #f1f5f9 !important;
+    border-radius: 8px !important;
+}
+
+/* Bugünün stil ayarı */
+.react-calendar__tile--now {
+    background: #edf2f7 !important;
+    color: #2b6cb0 !important;
+    font-weight: bold !important;
+}
+
+/* Seçili günün stil ayarı */
+.react-calendar__tile--active {
+    background: #3182ce !important;
+    color: white !important;
+    font-weight: bold !important;
+}
+
+/* Hafta sonu günlerinin renkleri (Opsiyonel daha şık bir görünüm için) */
+.react-calendar__month-view__days__day--weekend {
+    color: #e53e3e !important;
+}
+
+/* --- GÖRÜNMEZLİK SORUNUNU ÇÖZEN KODLAR --- */
+
+/* Takvim içindeki tüm butonların global beyaz rengini ez ve düzelt */
+.react-calendar button {
+    color: #2c3e50 !important; /* Yazıları koyu gri/siyah yap */
+    background-color: transparent !important; /* Global buton mavisini kaldır */
+}
+
+/* Takvimin üst kısmındaki ay/yıl (Ağustos 2026) navigasyon alanı */
+.react-calendar__navigation {
+    display: flex !important;
+    width: 100% !important;
+    margin-bottom: 15px !important;
+    gap: 5px;
+}
+
+/* Üstteki ay/yıl değiştirme butonlarının boyutları */
+.react-calendar__navigation button {
+    font-size: 16px !important;
+    font-weight: bold !important;
+    padding: 10px !important;
+    border-radius: 8px !important;
+    min-width: 44px !important;
+}
+
+.react-calendar__navigation button:hover {
+    background-color: #f1f5f9 !important;
+}
+
+/* Yukarıdaki 'color: #2c3e50' kuralının seçili günü bozmaması için seçili günü tekrar beyaza zorluyoruz */
+.react-calendar__tile--active {
+    background: #3182ce !important;
+    color: white !important;
+}
+
+.react-calendar__tile--now {
+    color: #2b6cb0 !important;
+}
+
+/* --- MODAL (AÇILIR PENCERE) TASARIMI --- */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    backdrop-filter: blur(4px); /* Arka planı hafifçe bulanıklaştırır */
+}
+
+.modal-content {
+    background-color: #fff;
+    padding: 30px;
+    border-radius: 16px;
+    width: 90%;
+    max-width: 450px;
+    box-shadow: 0 15px 30px rgba(0,0,0,0.2);
+    animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-30px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    border-bottom: 1px solid #edf2f7;
+    padding-bottom: 15px;
+}
+
+.modal-header h2 {
+    margin: 0;
+    color: #2c3e50;
+    font-size: 1.4rem;
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    font-size: 32px;
+    line-height: 1;
+    color: #a0aec0;
+    cursor: pointer;
+    padding: 0;
+    transition: color 0.2s;
+}
+
+.close-btn:hover {
+    color: #e53e3e;
+    background: transparent;
+}
+
+.modal-body label {
+    font-weight: 600;
+    color: #4a5568;
+    margin-bottom: 8px;
+    display: block;
+    text-align: left;
+    font-size: 0.95rem;
+}
