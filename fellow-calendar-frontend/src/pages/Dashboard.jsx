@@ -3,10 +3,13 @@ import Navbar from '../components/Navbar';
 import Calendar from '../components/Calendar';
 import Groups from '../components/Groups';
 import SettingsModal from '../components/SettingsModal';
+import InviteModal from '../components/InviteModal';
+import CreateGroupModal from '../components/CreateGroupModal';
 
 export default function Dashboard({ user, onLogout }) {
-  // Modal'ın açık/kapalı durumunu tutan state
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isInviteOpen, setIsInviteOpen] = useState(false);
+  const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
 
   return (
     <div id="dashboard-screen" style={{ padding: '20px' }}>
@@ -18,13 +21,23 @@ export default function Dashboard({ user, onLogout }) {
           <Calendar />
         </div>
 
-        {/* onOpenSettings fonksiyonunu Groups bileşenine yolluyoruz */}
-        <Groups onOpenSettings={() => setIsSettingsOpen(true)} />
+        <Groups
+          onOpenSettings={() => setIsSettingsOpen(true)}
+          onOpenInvite={() => setIsInviteOpen(true)}
+          onOpenCreateGroup={() => setIsCreateGroupOpen(true)}
+        />
       </div>
 
-      {/* isSettingsOpen true ise Modal'ı ekranda göster */}
-      {isSettingsOpen && (
-        <SettingsModal onClose={() => setIsSettingsOpen(false)} />
+      {isSettingsOpen && <SettingsModal user={user} onClose={() => setIsSettingsOpen(false)} />}
+      {isInviteOpen && <InviteModal onClose={() => setIsInviteOpen(false)} />}
+      {isCreateGroupOpen && (
+        <CreateGroupModal
+          user={user}
+          onClose={() => setIsCreateGroupOpen(false)}
+          onGroupCreated={() => console.log('Grup yenilendi')}
+          onOpenInvite={() => setIsInviteOpen(true)}
+          onOpenSettings={() => setIsSettingsOpen(true)}
+        />
       )}
     </div>
   );

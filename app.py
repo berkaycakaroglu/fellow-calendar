@@ -1,28 +1,28 @@
-from fastapi import FastAPI, Depends, HTTPException
-from fastapi.staticfiles import StaticFiles  # Arayüz dosyaları için eklendi
-from fastapi.responses import RedirectResponse  # Otomatik yönlendirme için eklendi
+import hashlib
+import re
+import secrets
 from typing import List
-from sqlalchemy.orm import Session
-import hashlib  # Şifreleri gizlemek (hash) için eklendi
-import re  # Şifre kurallarını (özel karakter vb.) kontrol etmek için eklendi
 
-# Kendi yazdığımız diğer dosyalardan gerekli araçları çekiyoruz
+from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.orm import Session
+
+from app_database import engine, get_db
 import models
 import schemas
-from app_database import engine, get_db
 
 app = FastAPI()
 
-# --- HTML VE ARAYÜZ (FRONTEND) AYARLARI ---
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# --- CORS AYARLARI (TEK VE TEMİZ TANIMLAMA) ---
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Geliştirme aşamasında tüm origin'lere izin verir
+    allow_credentials=True,
+    allow_methods=["*"],  # GET, POST, OPTIONS vb. tüm methodlara izin verir
+    allow_headers=["*"],
+)
 
-
-@app.get("/")
-def ana_sayfa_yonlendir():
-    return RedirectResponse(url="/static/index.html")
-
-
-# 🚀 SİHİRLİ SATIR: Tabloları MySQL'de otomatik oluşturur.
+# Tabloları MySQL'de otomatik oluşturur
 models.Base.metadata.create_all(bind=engine)
 
 
@@ -31,7 +31,104 @@ def sifreyi_hashle(sifre: str):
     return hashlib.sha256(sifre.encode()).hexdigest()
 
 
-# --- ESKİ STATİK TAKVİM MANTIĞI (Şimdilik duruyor) ---
+# --- KULLANICI KAYIT OLMA (POST) ---
+@app.post("/kullanicilar/")
+def kullanici_kaydet(veri: schemas.KullaniciOlustur, db: Session = Depends(get_db)):
+    if veri.sifre != veri.sifre_tekrar:
+        raise HTTPException(status_code=400, detail="Şifreler uyuşmuyor!")
+
+    if len(veri.sifre) < 8 or not any(c.isupper() for c in veri.sifre) or not re.search(r"[!@#$%^&*?_~+\-]", veri.sifre):
+        raise HTTPException(
+            status_code=400,
+            detail="Şifre en az 8 karakter, 1 büyük harf ve 1 özel karakter (? ! vb.) içermelidir."
+        )
+
+    db_kullanici = db.query(models.Kullanici).filter(models.Kullanici.eposta == veri.eposta).first()
+    if db_kullanici:
+        raise HTTPException(status_code=400, detail="Bu mail ile bir hesap bulunuyor.")
+
+    yeni_kullanici = models.Kullanici(
+        isim=veri.isim,
+        kullanici_adi=getattr(veri, 'kullanici_adi', None),
+        eposta=veri.eposta,
+        sifre=sifreyi_hashle(veri.sifre)
+    )
+
+    db.add(yeni_kullanici)
+    db.commit()
+
+    return {"mesaj": "Kayıt başarılı! Şimdi giriş yapabilirsiniz."}
+
+
+# --- KULLANICI GİRİŞ YAPMA (POST) ---
+@app.post("/giris/")
+def giris_yap(veri: schemas.KullaniciGiris, db: Session = Depends(get_db)):
+    kullanici = db.query(models.Kullanici).filter(models.Kullanici.eposta == veri.eposta).first()
+
+    if not kullanici:
+        raise HTTPException(status_code=404, detail="Bu maile ait bir hesap bulunmamaktadır.")
+
+    if kullanici.sifre != sifreyi_hashle(veri.sifre):
+        raise HTTPException(status_code=400, detail="Şifre hatalı!")
+
+    return {
+        "mesaj": "Giriş başarılı",
+        "isim": kullanici.isim,
+        "kullanici_adi": getattr(kullanici, 'kullanici_adi', None),
+        "id": kullanici.id
+    }
+
+
+# --- GRUP VE ARKADAŞLIK ENDPOINT'LERİ ---
+
+@app.post("/api/groups/create")
+def create_group(req: schemas.GrupOlusturSchema, db: Session = Depends(get_db)):
+    # 1. Yeni grubu oluştur (grup_tipi varsayılan olarak 'genel' atanır)
+    yeni_grup = models.Grup(
+        grup_adi=req.grup_adi,
+        grup_tipi="genel",
+        olusturan_kullanici_id=req.olusturan_id
+    )
+    db.add(yeni_grup)
+    db.commit()
+    db.refresh(yeni_grup)
+
+    # 2. Grubu oluşturan kullanıcıyı otomatik üye yap (GrupUye sınıfı kullanılıyor)
+    yeni_uye = models.GrupUye(
+        grup_id=yeni_grup.id,
+        kullanici_id=req.olusturan_id
+    )
+    db.add(yeni_uye)
+    db.commit()
+
+    return {"message": "Grup başarıyla oluşturuldu!", "grup_id": yeni_grup.id}
+
+
+@app.post("/api/friends/request")
+def send_friend_request(req: schemas.FriendRequestSchema, db: Session = Depends(get_db)):
+    hedef_kullanici = db.query(models.Kullanici).filter(models.Kullanici.kullanici_adi == req.kullanici_adi).first()
+    if not hedef_kullanici:
+        raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı.")
+
+    return {"message": f"@{req.kullanici_adi} kullanıcısına istek gönderildi."}
+
+
+@app.post("/api/groups/{grup_id}/generate-invite")
+def generate_group_invite(grup_id: int, db: Session = Depends(get_db)):
+    davet_kodu = f"FLW-{secrets.token_hex(3).upper()}"
+    return {
+        "grup_id": grup_id,
+        "davet_kodu": davet_kodu,
+        "davet_linki": f"http://localhost:5173/join/{davet_kodu}"
+    }
+
+
+@app.post("/api/groups/join")
+def join_group_by_code(req: schemas.JoinGroupSchema, db: Session = Depends(get_db)):
+    return {"message": "Gruba başarıyla katıldınız!"}
+
+
+# --- ORTAK RANDEVU HESAPLAMA ---
 kullanici_takvimleri = {
     "ahmet": [[10, 12], [15, 17]],
     "mehmet": [[11, 13], [16, 18]]
@@ -66,51 +163,3 @@ def randevu_oner():
         "mesaj": "Ahmet ve Mehmet için uygun buluşma saatleri bulundu!",
         "uygun_araliklar": uygun_saatler
     }
-
-
-# --- YENİ KAYIT OLMA (POST) ---
-@app.post("/kullanicilar/")
-def kullanici_kaydet(veri: schemas.KullaniciOlustur, db: Session = Depends(get_db)):
-    # 1. Şifreler eşleşiyor mu?
-    if veri.sifre != veri.sifre_tekrar:
-        raise HTTPException(status_code=400, detail="Şifreler uyuşmuyor!")
-
-    # 2. Şifre kuralları: En az 8 karakter, 1 Büyük harf, 1 Özel karakter
-    if len(veri.sifre) < 8 or not any(c.isupper() for c in veri.sifre) or not re.search(r"[!@#$%^&*?_~+\-]",
-                                                                                        veri.sifre):
-        raise HTTPException(status_code=400,
-                            detail="Şifre en az 8 karakter, 1 büyük harf ve 1 özel karakter (? ! vb.) içermelidir.")
-
-    # 3. E-posta adresi daha önce alınmış mı kontrol edelim
-    db_kullanici = db.query(models.Kullanici).filter(models.Kullanici.eposta == veri.eposta).first()
-    if db_kullanici:
-        # BURASI DEĞİŞTİ: JavaScript'in beklediği tam cümle
-        raise HTTPException(status_code=400, detail="Bu mail ile bir hesap bulunuyor.")
-
-    # 4. Yeni kullanıcı nesnesini oluşturalım (şifreyi şifreleyerek kaydediyoruz)
-    yeni_kullanici = models.Kullanici(
-        isim=veri.isim,
-        eposta=veri.eposta,
-        sifre=sifreyi_hashle(veri.sifre)
-    )
-
-    # 5. Veri tabanına ekleyip kaydedelim
-    db.add(yeni_kullanici)
-    db.commit()
-
-    return {"mesaj": "Kayıt başarılı! Şimdi giriş yapabilirsiniz."}
-
-
-# --- YENİ GİRİŞ YAPMA (POST) ---
-@app.post("/giris/")
-def giris_yap(veri: schemas.KullaniciGiris, db: Session = Depends(get_db)):
-    kullanici = db.query(models.Kullanici).filter(models.Kullanici.eposta == veri.eposta).first()
-
-    # BURASI DEĞİŞTİ: Hataları ikiye böldük ve JavaScript'in beklediği tam cümleleri yazdık
-    if not kullanici:
-        raise HTTPException(status_code=404, detail="Bu maile ait bir hesap bulunmamaktadır.")
-
-    if kullanici.sifre != sifreyi_hashle(veri.sifre):
-        raise HTTPException(status_code=400, detail="Şifre hatalı!")
-
-    return {"mesaj": "Giriş başarılı", "isim": kullanici.isim}

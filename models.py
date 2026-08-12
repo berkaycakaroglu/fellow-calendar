@@ -9,15 +9,17 @@ class Kullanici(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     isim = Column(String(50))
+    kullanici_adi = Column(String(50), unique=True, index=True, nullable=True)
     eposta = Column(String(50), unique=True, index=True)
     sifre = Column(String(255), nullable=False)  # YENİ EKLENDİ
 
 class Grup(Base):
-    __tablename__ = "gruplar"
+    __tablename__ = "gruplar"  # Veritabanındaki tablo adınla birebir aynı olmalı
 
     id = Column(Integer, primary_key=True, index=True)
     grup_adi = Column(String(100), nullable=False)
-    grup_tipi = Column(String(20), nullable=False)  # Kizlar, Erkekler, Karma
+    olusturan_kullanici_id = Column(Integer, ForeignKey("kullanicilar.id"))
+    grup_tipi = Column(String(20), default="genel", nullable=False)
 
 
 class GrupUye(Base):
