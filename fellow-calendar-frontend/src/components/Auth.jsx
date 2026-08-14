@@ -1,109 +1,364 @@
 import React, { useState } from 'react';
+import { motion } from 'framer-motion';
+import { Calendar, Mail, Lock, User, ArrowRight, CheckCircle2 } from 'lucide-react';
 
-export default function Auth({ onLogin }) {
-  const [isLoginView, setIsLoginView] = useState(true);
-  const [message, setMessage] = useState('');
+export default function Auth({ onLoginSuccess }) {
+  const [isLogin, setIsLogin] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
-  // Giriş Formu Stateleri
-  const [loginEmail, setLoginEmail] = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
+  // Form State'leri
+  const [isim, setIsim] = useState('');
+  const [kullaniciAdi, setKullaniciAdi] = useState('');
+  const [email, setEmail] = useState('');
+  const [sifre, setSifre] = useState('');
 
-  // Kayıt Formu Stateleri
-  const [name, setName] = useState('');
-  const [registerEmail, setRegisterEmail] = useState('');
-  const [registerPassword, setRegisterPassword] = useState('');
-  const [registerPasswordConfirm, setRegisterPasswordConfirm] = useState('');
-
-  const handleLogin = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!loginEmail || !loginPassword) {
-      setMessage('Lütfen tüm alanları doldurun.');
-      return;
-    }
-    // Backend isteği buraya gelecek
-    onLogin({ email: loginEmail, name: 'Kullanıcı' });
-  };
+    setErrorMsg('');
+    setLoading(true);
 
-  const handleRegister = (e) => {
-    e.preventDefault();
-    if (registerPassword !== registerPasswordConfirm) {
-      setMessage('Şifreler uyuşmuyor!');
-      return;
+    // Backend adresi doğrudan tanımlandı (Proxy sorununu ortadan kaldırır)
+    const API_BASE = 'http://127.0.0.1:8000';
+    const endpoint = isLogin
+      ? `${API_BASE}/api/auth/login`
+      : `${API_BASE}/api/users/register`;
+
+    const payload = isLogin
+      ? {
+          eposta: email.trim(),
+          sifre: sifre,
+        }
+      : {
+          isim: isim.trim(),
+          kullanici_adi: kullaniciAdi.trim(),
+          eposta: email.trim(),
+          sifre: sifre,
+          sifre_tekrar: sifre,
+        };
+
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        if (isLogin) {
+          onLoginSuccess(data);
+        } else {
+          alert('Kayıt başarılı! Şimdi belirlediğiniz şifreyle giriş yapabilirsiniz.');
+          setIsLogin(true);
+          setSifre('');
+        }
+      } else {
+        setErrorMsg(data.detail || 'İşlem gerçekleştirilemedi.');
+      }
+    } catch (err) {
+      console.error('Fetch Hatası:', err);
+      setErrorMsg('Sunucuya bağlanılamadı. Backend servisinizin (port 8000) açık olduğundan emin olun.');
+    } finally {
+      setLoading(false);
     }
-    setMessage('Kayıt başarılı! Şimdi giriş yapabilirsiniz.');
-    setIsLoginView(true);
   };
 
   return (
-    <div id="auth-screen" className="container">
-      <h1>📅 Fellow Calendar</h1>
-      <p>Arkadaşlarınla plan yapmanın en kolay yolu.</p>
+    <div
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: '#F8F7F4',
+        padding: '24px',
+        boxSizing: 'border-box',
+      }}
+    >
+      <motion.div
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        style={{
+          width: '100%',
+          maxWidth: '920px',
+          background: '#FFFFFF',
+          border: '1px solid #E6E4DD',
+          borderRadius: '24px',
+          boxShadow: '0 20px 50px -10px rgba(0, 87, 255, 0.08), 0 4px 15px rgba(0,0,0,0.03)',
+          display: 'grid',
+          gridTemplateColumns: '1fr 1.15fr',
+          overflow: 'hidden',
+        }}
+      >
+        {/* SOL PANEL */}
+        <div
+          style={{
+            background: 'linear-gradient(145deg, #0057FF 0%, #003db3 100%)',
+            color: '#FFFFFF',
+            padding: '44px 36px',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+          }}
+        >
+          <div>
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '10px',
+                background: 'rgba(255,255,255,0.15)',
+                padding: '8px 14px',
+                borderRadius: '12px',
+                backdropFilter: 'blur(10px)',
+                marginBottom: '28px',
+              }}
+            >
+              <Calendar size={20} color="#FFFFFF" />
+              <span style={{ fontSize: '18px', fontWeight: '800', letterSpacing: '-0.02em' }}>
+                Lets<span style={{ color: '#F8F7F4' }}>Meet</span>
+              </span>
+            </div>
 
-      {isLoginView ? (
-        <div id="giris-formu" className="form-group">
-          <h3>Giriş Yap</h3>
-          <form onSubmit={handleLogin}>
-            <input
-              type="email"
-              placeholder="E-Posta Adresi"
-              value={loginEmail}
-              onChange={(e) => setLoginEmail(e.target.value)}
-            />
-            <input
-              type="password"
-              placeholder="Şifre"
-              value={loginPassword}
-              onChange={(e) => setLoginPassword(e.target.value)}
-            />
-            <button type="submit">Giriş Yap</button>
-          </form>
-          <p>
-            Hesabın yok mu?{' '}
-            <a href="#" onClick={() => setIsLoginView(false)}>
-              Kayıt Ol
-            </a>
-          </p>
-        </div>
-      ) : (
-        <div id="kayit-formu" className="form-group">
-          <h3>Hesap Oluştur</h3>
-          <form onSubmit={handleRegister}>
-            <input
-              type="text"
-              placeholder="İsim Soyisim"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-            <input
-              type="email"
-              placeholder="E-Posta Adresi"
-              value={registerEmail}
-              onChange={(e) => setRegisterEmail(e.target.value)}
-            />
-            <input
-              type="password"
-              placeholder="Şifre (En az 8 kar., 1 Büyük, 1 Özel)"
-              value={registerPassword}
-              onChange={(e) => setRegisterPassword(e.target.value)}
-            />
-            <input
-              type="password"
-              placeholder="Şifreyi Tekrar Girin"
-              value={registerPasswordConfirm}
-              onChange={(e) => setRegisterPasswordConfirm(e.target.value)}
-            />
-            <button type="submit">Kayıt Ol</button>
-          </form>
-          <p>
-            Zaten hesabın var mı?{' '}
-            <a href="#" onClick={() => setIsLoginView(true)}>
-              Giriş Yap
-            </a>
-          </p>
-        </div>
-      )}
+            <h2 style={{ fontSize: '26px', fontWeight: '800', lineHeight: 1.25, marginBottom: '14px' }}>
+              Arkadaşlarınla ortak zamanı saniyeler içinde bul.
+            </h2>
+            <p style={{ fontSize: '13px', color: 'rgba(248, 247, 244, 0.8)', lineHeight: 1.5, marginBottom: '30px' }}>
+              Mesajlaşma gruplarında "kim ne zaman müsait?" kaosuna son verin. Takvimleri otomatik eşleyin ve en uygun saati tek tıkla görün.
+            </p>
 
-      {message && <p className="mesaj">{message}</p>}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', fontWeight: '600' }}>
+                <CheckCircle2 size={18} color="#F8F7F4" />
+                <span>Grup meşguliyetlerini anlık tara</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', fontWeight: '600' }}>
+                <CheckCircle2 size={18} color="#F8F7F4" />
+                <span>Geçmiş etkinlikleri güvenle kilitle</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', fontWeight: '600' }}>
+                <CheckCircle2 size={18} color="#F8F7F4" />
+                <span>Canlı saat ve hava durumu entegrasyonu</span>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.6)', marginTop: '20px' }}>
+            © 2026 LetsMeet • Birlikte plan yapmanın en hızlı yolu.
+          </div>
+        </div>
+
+        {/* SAĞ PANEL */}
+        <div style={{ padding: '44px 40px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <div style={{ marginBottom: '24px' }}>
+            <h3 style={{ fontSize: '22px', fontWeight: '800', color: '#14171F', marginBottom: '6px' }}>
+              {isLogin ? 'Tekrar Hoş Geldin! 👋' : 'Hemen Hesabını Oluştur 🚀'}
+            </h3>
+            <p style={{ fontSize: '13px', color: '#5E6678' }}>
+              {isLogin ? 'Planlarını yönetmek için lütfen giriş yap.' : 'Arkadaş grubuna katılmak için formu doldur.'}
+            </p>
+          </div>
+
+          {errorMsg && (
+            <div
+              style={{
+                background: '#FEECEB',
+                border: '1px solid #E53935',
+                color: '#E53935',
+                padding: '10px 14px',
+                borderRadius: '10px',
+                fontSize: '12px',
+                fontWeight: '700',
+                marginBottom: '18px',
+              }}
+            >
+              ⚠️ {errorMsg}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {!isLogin && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: '700',
+                      color: '#5E6678',
+                      textTransform: 'uppercase',
+                      marginBottom: '6px',
+                      display: 'block',
+                    }}
+                  >
+                    Ad Soyad
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <User
+                      size={16}
+                      color="#949DAE"
+                      style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Ahmet Yılmaz"
+                      value={isim}
+                      onChange={(e) => setIsim(e.target.value)}
+                      required
+                      style={{ paddingLeft: '36px' }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: '700',
+                      color: '#5E6678',
+                      textTransform: 'uppercase',
+                      marginBottom: '6px',
+                      display: 'block',
+                    }}
+                  >
+                    Kullanıcı Adı
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <span
+                      style={{
+                        position: 'absolute',
+                        left: '12px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        color: '#949DAE',
+                        fontWeight: 'bold',
+                      }}
+                    >
+                      @
+                    </span>
+                    <input
+                      type="text"
+                      placeholder="ahmety"
+                      value={kullaniciAdi}
+                      onChange={(e) => setKullaniciAdi(e.target.value)}
+                      required
+                      style={{ paddingLeft: '32px' }}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div>
+              <label
+                style={{
+                  fontSize: '11px',
+                  fontWeight: '700',
+                  color: '#5E6678',
+                  textTransform: 'uppercase',
+                  marginBottom: '6px',
+                  display: 'block',
+                }}
+              >
+                E-Posta Adresi
+              </label>
+              <div style={{ position: 'relative' }}>
+                <Mail
+                  size={16}
+                  color="#949DAE"
+                  style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }}
+                />
+                <input
+                  type="email"
+                  placeholder="ornek@email.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  style={{ paddingLeft: '36px' }}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label
+                style={{
+                  fontSize: '11px',
+                  fontWeight: '700',
+                  color: '#5E6678',
+                  textTransform: 'uppercase',
+                  marginBottom: '6px',
+                  display: 'block',
+                }}
+              >
+                Şifre{' '}
+                {!isLogin && (
+                  <span style={{ textTransform: 'none', fontWeight: '400', fontSize: '10px' }}>
+                    (Min 8 karakter, 1 büyük harf ve 1 özel karakter)
+                  </span>
+                )}
+              </label>
+              <div style={{ position: 'relative' }}>
+                <Lock
+                  size={16}
+                  color="#949DAE"
+                  style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }}
+                />
+                <input
+                  type="password"
+                  placeholder="••••••••"
+                  value={sifre}
+                  onChange={(e) => setSifre(e.target.value)}
+                  required
+                  style={{ paddingLeft: '36px' }}
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="btn-primary"
+              style={{
+                width: '100%',
+                padding: '12px',
+                fontSize: '14px',
+                fontWeight: '700',
+                marginTop: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+              }}
+            >
+              {loading ? 'İşleniyor...' : isLogin ? 'Giriş Yap' : 'Kayıt Ol ve Başla'}
+              <ArrowRight size={16} />
+            </button>
+          </form>
+
+          <div style={{ marginTop: '24px', textAlign: 'center', fontSize: '13px', color: '#5E6678' }}>
+            {isLogin ? 'Henüz bir hesabın yok mu?' : 'Zaten bir hesabın var mı?'}{' '}
+            <button
+              onClick={() => {
+                setIsLogin(!isLogin);
+                setErrorMsg('');
+              }}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#0057FF',
+                fontWeight: '800',
+                cursor: 'pointer',
+                textDecoration: 'underline',
+                fontSize: '13px',
+              }}
+            >
+              {isLogin ? 'Hemen Kayıt Ol' : 'Giriş Yap'}
+            </button>
+          </div>
+        </div>
+      </motion.div>
     </div>
   );
 }

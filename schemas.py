@@ -1,31 +1,73 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from typing import Optional
+from datetime import datetime
 
-# Kullanıcı Kayıt Şeması (app.py içindeki kullanici_kaydet için)
+
 class KullaniciOlustur(BaseModel):
     isim: str
     eposta: str
     sifre: str
-    sifre_tekrar: str
+    sifre_tekrar: Optional[str] = None
     kullanici_adi: Optional[str] = None
 
-# Kullanıcı Giriş Şeması (app.py içindeki giris_yap için)
+
+class KullaniciGuncelle(BaseModel):
+    isim: str
+    eposta: str
+    sifre: Optional[str] = None
+
+
 class KullaniciGiris(BaseModel):
     eposta: str
     sifre: str
 
-# Arkadaşlık İsteği Şeması
+
+# Arkadaşlık Şemaları
 class FriendRequestSchema(BaseModel):
-    kullanici_adi: str
+    gonderen_id: int
+    hedef_kullanici_adi: str
 
-# Grup Davet Linki / Kodu Şemaları
-class GroupInviteSchema(BaseModel):
-    grup_id: int
 
-class JoinGroupSchema(BaseModel):
-    davet_kodu: str
+class FriendResponseSchema(BaseModel):
+    istek_id: int
+    kabul_mu: bool
 
-# Grup Oluşturma Şeması
+
+# Grup Şemaları
 class GrupOlusturSchema(BaseModel):
     grup_adi: str
+    aciklama: Optional[str] = ""
     olusturan_id: int
+    grup_tipi: Optional[str] = "genel"
+
+
+class GrupGuncelleSchema(BaseModel):
+    grup_adi: str
+    aciklama: Optional[str] = ""
+    kullanici_id: int
+
+
+class DirectGroupInviteSchema(BaseModel):
+    grup_id: int
+    gonderen_id: int
+    davet_edilen_id: int
+
+
+class GroupInviteResponseSchema(BaseModel):
+    davet_id: int
+    kabul_mu: bool
+
+
+class JoinGroupSchema(BaseModel):
+    kullanici_id: int
+    token: str
+
+
+# Takvim
+class EtkinlikEkleSchema(BaseModel):
+    kullanici_id: int
+    baslik: str
+    baslangic: datetime
+    bitis: datetime
+    oncelik: Optional[int] = 1
+    grup_id: Optional[int] = None
