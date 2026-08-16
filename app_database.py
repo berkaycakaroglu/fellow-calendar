@@ -1,18 +1,29 @@
-# database.py
+import os
+from dotenv import load_dotenv
 from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import declarative_base, sessionmaker
 
-# NOT: 'root' yazan yere kendi MySQL kullanıcı adını, 'sifre' yazan yere MySQL şifreni yazmalısın.
-# Sondaki 'fellow_calendar_db' ise MySQL'de oluşturacağımız veri tabanının adı olacak.
-DATABASE_URL = "mysql+pymysql://root:Dameisabuck0!@localhost:3306/fellow_calendar_db"
+# .env dosyasını yükle
+load_dotenv()
 
-engine = create_engine(DATABASE_URL)
+# Bağlantı adresini .env dosyasından güvenli bir şekilde al
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if not DATABASE_URL:
+    raise ValueError(".env dosyasında 'DATABASE_URL' tanımlanmamış!")
+
+engine = create_engine(
+    DATABASE_URL,
+    pool_recycle=3600,
+    pool_pre_ping=True
+)
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
 
-# Veri tabanı oturumu açıp kapatmak için yardımcı fonksiyon
+
+# Veritabanı oturumu için Dependency Injection fonksiyonu
 def get_db():
     db = SessionLocal()
     try:

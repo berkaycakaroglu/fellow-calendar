@@ -5,6 +5,9 @@ export default function JoinGroupModal({ user, onClose, onGroupJoined }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:8000';
+  const token = user?.access_token || localStorage.getItem('token') || '';
+
   const handleJoin = async (e) => {
     e.preventDefault();
     if (!code.trim()) return;
@@ -13,11 +16,13 @@ export default function JoinGroupModal({ user, onClose, onGroupJoined }) {
     setError('');
 
     try {
-      const res = await fetch('/api/groups/join', {
+      const res = await fetch(`${API_BASE}/api/groups/join`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
         body: JSON.stringify({
-          kullanici_id: user.id,
           token: code.trim(),
         }),
       });

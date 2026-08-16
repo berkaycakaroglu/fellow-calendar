@@ -16,15 +16,74 @@ import {
   ThumbsUp,
   ThumbsDown,
   Trash2,
-  UserCheck
+  Edit2,
+  Info,
+  AlertTriangle,
+  KeyRound,
+  PlusCircle,
+  Coffee,
+  Shield,
+  Mail,
+  Search,
+  CheckCircle2
 } from 'lucide-react';
 
 export default function Calendar({ user }) {
   const [activeTab, setActiveTab] = useState('personal');
 
-  // Tarih State'leri (Ağustos 2026)
-  const [selectedDay, setSelectedDay] = useState(14);
-  const selectedDateStr = `2026-08-${selectedDay < 10 ? '0' + selectedDay : selectedDay}`;
+  // Token ve API Adresi
+  const token = user?.access_token || user?.token || localStorage.getItem('token') || '';
+  const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:8000';
+
+  // Güvenli Fetch Yardımcısı (JWT Token ekler)
+  const authFetch = async (endpoint, options = {}) => {
+    const headers = {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options.headers || {}),
+    };
+    return fetch(`${API_BASE}${endpoint}`, { ...options, headers });
+  };
+
+  // Canlı Tarih Yönetimi
+  const today = new Date();
+  const currentYear = today.getFullYear();
+  const currentMonth = today.getMonth(); // 0-11
+  const todayDateNumber = today.getDate();
+
+  const [selectedDay, setSelectedDay] = useState(todayDateNumber);
+  const [currentMonthIndex, setCurrentMonthIndex] = useState(currentMonth);
+  const [currentYearVal, setCurrentYearVal] = useState(currentYear);
+
+  // Formatlı Tarih Dizgisi (YYYY-MM-DD)
+  const formattedMonth = String(currentMonthIndex + 1).padStart(2, '0');
+  const formattedDay = String(selectedDay).padStart(2, '0');
+  const selectedDateStr = `${currentYearVal}-${formattedMonth}-${formattedDay}`;
+
+  const monthNames = [
+    'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
+    'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'
+  ];
+
+  const daysInCurrentMonth = new Date(currentYearVal, currentMonthIndex + 1, 0).getDate();
+
+  const handlePrevMonth = () => {
+    if (currentMonthIndex === 0) {
+      setCurrentMonthIndex(11);
+      setCurrentYearVal((prev) => prev - 1);
+    } else {
+      setCurrentMonthIndex((prev) => prev - 1);
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (currentMonthIndex === 11) {
+      setCurrentMonthIndex(0);
+      setCurrentYearVal((prev) => prev + 1);
+    } else {
+      setCurrentMonthIndex((prev) => prev + 1);
+    }
+  };
 
   // Veri State'leri
   const [events, setEvents] = useState([]);
@@ -41,43 +100,75 @@ export default function Calendar({ user }) {
   const [isAddPlanModalOpen, setIsAddPlanModalOpen] = useState(false);
   const [planForm, setPlanForm] = useState({ baslik: '', baslaSaat: '14:00', bitisSaat: '16:00', oncelik: 1 });
 
-  // Arkadaşı Gruba Davet Etme Modalı State'leri
   const [inviteModalFriend, setInviteModalFriend] = useState(null);
   const [selectedGroupIdToInvite, setSelectedGroupIdToInvite] = useState('');
 
-  // Teklif Formu State'leri
+  // Grup Düzenleme Modalı State'leri
+  const [editingGroup, setEditingGroup] = useState(null);
+  const [editGroupName, setEditGroupName] = useState('');
+
   const [proposalTitle, setProposalTitle] = useState('');
   const [selectedSlotForProposal, setSelectedSlotForProposal] = useState('');
   const [showProposalBox, setShowProposalBox] = useState(false);
 
-  // Arkadaş & Grup Formları
   const [newFriendUsername, setNewFriendUsername] = useState('');
   const [newGroupName, setNewGroupName] = useState('');
   const [joinToken, setJoinToken] = useState('');
 
-  const API_BASE = 'http://127.0.0.1:8000';
+  // Özel Bildirim & Onay Modalı State'i
+  const [dialogConfig, setDialogConfig] = useState({
+    isOpen: false,
+    type: 'alert',
+    title: '',
+    message: '',
+    isDanger: false,
+    onConfirm: null
+  });
 
-  // Veri Çekme Fonksiyonları
+  const showAlert = (message, title = 'Bilgilendirme') => {
+    setDialogConfig({
+      isOpen: true,
+      type: 'alert',
+      title,
+      message,
+      isDanger: false,
+      onConfirm: null
+    });
+  };
+
+  const showConfirm = (message, onConfirm, title = 'Onay Gerekli', isDanger = true) => {
+    setDialogConfig({
+      isOpen: true,
+      type: 'confirm',
+      title,
+      message,
+      isDanger,
+      onConfirm
+    });
+  };
+
+  const closeDialog = () => {
+    setDialogConfig(prev => ({ ...prev, isOpen: false }));
+  };
+
+  // API İstekleri (JWT Token Korumalı)
   const fetchEvents = async () => {
-    if (!user?.id) return;
     try {
-      const res = await fetch(`${API_BASE}/api/users/${user.id}/events`);
+      const res = await authFetch('/api/users/events');
       if (res.ok) setEvents(await res.json());
     } catch (e) { console.error(e); }
   };
 
   const fetchFriends = async () => {
-    if (!user?.id) return;
     try {
-      const res = await fetch(`${API_BASE}/api/users/${user.id}/friends`);
+      const res = await authFetch('/api/users/friends');
       if (res.ok) setFriendsData(await res.json());
     } catch (e) { console.error(e); }
   };
 
   const fetchGroups = async () => {
-    if (!user?.id) return;
     try {
-      const res = await fetch(`${API_BASE}/api/users/${user.id}/groups`);
+      const res = await authFetch('/api/users/groups');
       if (res.ok) {
         const data = await res.json();
         setGroups(data);
@@ -87,9 +178,8 @@ export default function Calendar({ user }) {
   };
 
   const fetchProposals = async () => {
-    if (!user?.id) return;
     try {
-      const res = await fetch(`${API_BASE}/api/users/${user.id}/group-proposals`);
+      const res = await authFetch('/api/users/group-proposals');
       if (res.ok) setGroupProposals(await res.json());
     } catch (e) { console.error(e); }
   };
@@ -97,13 +187,13 @@ export default function Calendar({ user }) {
   const fetchGroupCalendarData = async () => {
     if (!selectedGroup) return;
     try {
-      const timelineRes = await fetch(`${API_BASE}/api/groups/${selectedGroup.id}/timeline?tarih=${selectedDateStr}`);
+      const timelineRes = await authFetch(`/api/groups/${selectedGroup.id}/timeline?tarih=${selectedDateStr}`);
       if (timelineRes.ok) {
         const tData = await timelineRes.json();
         setGroupTimeline(tData.uyeler || []);
       }
 
-      const slotsRes = await fetch(`${API_BASE}/api/groups/${selectedGroup.id}/common-slots?tarih=${selectedDateStr}`);
+      const slotsRes = await authFetch(`/api/groups/${selectedGroup.id}/common-slots?tarih=${selectedDateStr}`);
       if (slotsRes.ok) {
         const sData = await slotsRes.json();
         setGroupCommonSlots(sData.uygun_saat_araliklari || []);
@@ -122,9 +212,8 @@ export default function Calendar({ user }) {
     if (activeTab === 'group_calendar' && selectedGroup) {
       fetchGroupCalendarData();
     }
-  }, [activeTab, selectedGroup, selectedDay]);
+  }, [activeTab, selectedGroup, selectedDay, currentMonthIndex, currentYearVal]);
 
-  // 1. KİŞİSEL PLAN EKLEME
   const handleAddPersonalPlan = async (e) => {
     e.preventDefault();
     if (!planForm.baslik.trim()) return;
@@ -133,11 +222,9 @@ export default function Calendar({ user }) {
     const bitis = `${selectedDateStr}T${planForm.bitisSaat}:00`;
 
     try {
-      const res = await fetch(`${API_BASE}/api/events`, {
+      const res = await authFetch('/api/events', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          kullanici_id: user.id,
           baslik: planForm.baslik.trim(),
           baslangic,
           bitis,
@@ -153,40 +240,42 @@ export default function Calendar({ user }) {
         fetchEvents();
         if (selectedGroup) fetchGroupCalendarData();
       } else {
-        alert(data.detail || 'Plan eklenemedi.');
+        showAlert(data.detail || 'Plan eklenemedi.', 'Hata');
       }
     } catch {
-      alert('Sunucu hatası oluştu.');
+      showAlert('Sunucu hatası oluştu.', 'Hata');
     }
   };
 
-  // Plan Silme
-  const handleDeleteEvent = async (id) => {
-    if (!window.confirm('Bu planı silmek istediğinize emin misiniz?')) return;
-    try {
-      const res = await fetch(`${API_BASE}/api/events/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        fetchEvents();
-        if (selectedGroup) fetchGroupCalendarData();
-      }
-    } catch (e) { console.error(e); }
+  const handleDeleteEvent = (id) => {
+    showConfirm(
+      'Bu planı silmek istediğinize emin misiniz?',
+      async () => {
+        try {
+          const res = await authFetch(`/api/events/${id}`, { method: 'DELETE' });
+          if (res.ok) {
+            fetchEvents();
+            if (selectedGroup) fetchGroupCalendarData();
+          }
+        } catch (e) { console.error(e); }
+      },
+      'Planı Sil',
+      true
+    );
   };
 
-  // 2. BULUŞMA TEKLİFİ GÖNDERME
   const handleSendProposal = async () => {
     if (!proposalTitle.trim() || !selectedSlotForProposal) {
-      alert('Lütfen bir başlık yazın ve saat aralığı seçin.');
+      showAlert('Lütfen bir başlık yazın ve saat aralığı seçin.', 'Eksik Bilgi');
       return;
     }
     const [start, end] = selectedSlotForProposal.split(' - ');
 
     try {
-      const res = await fetch(`${API_BASE}/api/groups/propose-plan`, {
+      const res = await authFetch('/api/groups/propose-plan', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           grup_id: selectedGroup.id,
-          teklif_eden_id: user.id,
           baslik: proposalTitle.trim(),
           tarih: selectedDateStr,
           baslangic_saat: start,
@@ -195,93 +284,211 @@ export default function Calendar({ user }) {
       });
 
       if (res.ok) {
-        alert('Buluşma teklifi gruba iletildi! Diğer üyeler oylayabilir.');
+        showAlert('Buluşma teklifi gruba iletildi! Diğer üyeler oylayabilir.', 'Teklif Gönderildi');
         setProposalTitle('');
         setShowProposalBox(false);
         fetchProposals();
       }
     } catch {
-      alert('Teklif gönderilemedi.');
+      showAlert('Teklif gönderilemedi.', 'Hata');
     }
   };
 
-  // 3. TEKLİFE YANIT VERME (BEN VARIM / BEN YOKUM)
   const handleRespondProposal = async (teklifId, kabulMu) => {
     try {
-      const res = await fetch(`${API_BASE}/api/groups/respond-proposal`, {
+      const res = await authFetch('/api/groups/respond-proposal', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           teklif_id: teklifId,
-          kullanici_id: user.id,
           kabul_mu: kabulMu
         })
       });
       const data = await res.json();
       if (res.ok) {
-        alert(data.message);
+        showAlert(data.message, 'Yanıt İletildi');
         fetchProposals();
         fetchEvents();
       }
     } catch {
-      alert('İşlem başarısız.');
+      showAlert('İşlem başarısız.', 'Hata');
     }
   };
 
-  // 4. ARKADAŞI GRUBA DAVET ETME FONKSİYONU
   const handleInviteFriendToGroup = async (e) => {
     e.preventDefault();
     if (!selectedGroupIdToInvite || !inviteModalFriend) return;
 
     try {
-      const res = await fetch(`${API_BASE}/api/groups/invite-friend`, {
+      const res = await authFetch('/api/groups/invite-friend', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           grup_id: parseInt(selectedGroupIdToInvite),
-          gonderen_id: user.id,
           davet_edilen_id: inviteModalFriend.id
         })
       });
 
       const data = await res.json();
       if (res.ok) {
-        alert(`${inviteModalFriend.isim} kullanıcısına grup daveti başarıyla iletildi!`);
+        showAlert(`${inviteModalFriend.isim} kullanıcısına grup daveti başarıyla iletildi!`, 'Davet Gönderildi');
         setInviteModalFriend(null);
         setSelectedGroupIdToInvite('');
       } else {
-        alert(data.detail || 'Davet gönderilemedi.');
+        showAlert(data.detail || 'Davet gönderilemedi.', 'Hata');
       }
     } catch {
-      alert('Sunucu hatası oluştu.');
+      showAlert('Sunucu hatası oluştu.', 'Hata');
     }
   };
 
-  // 5. GELEN GRUP DAVETİNE YANIT VERME
   const handleRespondGroupInvite = async (davetId, kabulMu) => {
     try {
-      const res = await fetch(`${API_BASE}/api/groups/respond-invite`, {
+      const res = await authFetch('/api/groups/respond-invite', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           davet_id: davetId,
           kabul_mu: kabulMu
         })
       });
       const data = await res.json();
-      alert(data.message);
+      showAlert(data.message, 'Grup Daveti');
       fetchFriends();
       fetchGroups();
     } catch {
-      alert('İşlem başarısız.');
+      showAlert('İşlem başarısız.', 'Hata');
     }
   };
 
-  // Seçilen Güne Ait Kişisel Planlar
-  const selectedDayEvents = events.filter(e => e.baslangic.startsWith(selectedDateStr));
+  const handleUpdateGroup = async (e) => {
+    e.preventDefault();
+    if (!editGroupName.trim() || !editingGroup) return;
 
-  // Toplam Gruplarım Bildirim Sayısı (Gelen Grup Davetleri + Gelen Buluşma Teklifleri)
+    try {
+      const res = await authFetch(`/api/groups/${editingGroup.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          grup_adi: editGroupName.trim(),
+          aciklama: editingGroup.aciklama || ''
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        showAlert(data.message, 'Başarılı');
+        setEditingGroup(null);
+        fetchGroups();
+      } else {
+        showAlert(data.detail || 'Grup güncellenemedi.', 'Hata');
+      }
+    } catch {
+      showAlert('Sunucu hatası oluştu.', 'Hata');
+    }
+  };
+
+  const handleDeleteGroup = (grupId) => {
+    showConfirm(
+      'Bu grubu silmek istediğinize emin misiniz? Gruptaki tüm üyeler ve etkinlik bağlantıları kaldırılacaktır.',
+      async () => {
+        try {
+          const res = await authFetch(`/api/groups/${grupId}`, {
+            method: 'DELETE'
+          });
+
+          const data = await res.json();
+          if (res.ok) {
+            showAlert(data.message, 'Grup Silindi');
+            fetchGroups();
+          } else {
+            showAlert(data.detail || 'Grup silinemedi.', 'Hata');
+          }
+        } catch {
+          showAlert('Sunucu hatası oluştu.', 'Hata');
+        }
+      },
+      'Grubu Sil',
+      true
+    );
+  };
+
+  const selectedDayEvents = events.filter(e => e.baslangic.startsWith(selectedDateStr));
   const totalGroupNotifications = (friendsData.grup_istekleri?.length || 0) + groupProposals.length;
+
+  const tabKeys = ['personal', 'group_calendar', 'friends', 'groups'];
+  const activeTabIndex = Math.max(0, tabKeys.indexOf(activeTab));
+
+  const renderMonthGrid = () => (
+    <div style={{ background: '#FFFFFF', border: '1px solid #E6E4DD', borderRadius: '20px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '12px', borderBottom: '1px solid #F0EFEA' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <button onClick={handlePrevMonth} style={{ border: 'none', background: '#F8F7F4', borderRadius: '8px', padding: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', color: '#14171F' }}>
+            <ChevronLeft size={16} />
+          </button>
+          <span style={{ fontSize: '15px', fontWeight: '800', color: '#14171F', minWidth: '130px', textAlign: 'center' }}>
+            {monthNames[currentMonthIndex]} {currentYearVal}
+          </span>
+          <button onClick={handleNextMonth} style={{ border: 'none', background: '#F8F7F4', borderRadius: '8px', padding: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', color: '#14171F' }}>
+            <ChevronRight size={16} />
+          </button>
+        </div>
+
+        <span style={{ fontSize: '12px', fontWeight: '700', color: '#949DAE' }}>
+          {daysInCurrentMonth} Gün
+        </span>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '8px', textAlign: 'center' }}>
+        {['PZT', 'SAL', 'ÇAR', 'PER', 'CUM', 'CMT', 'PAZ'].map(d => (
+          <span key={d} style={{ fontSize: '11px', fontWeight: '800', color: '#949DAE' }}>{d}</span>
+        ))}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '8px' }}>
+        {Array.from({ length: daysInCurrentMonth }, (_, i) => i + 1).map(day => {
+          const isToday =
+            day === todayDateNumber &&
+            currentMonthIndex === today.getMonth() &&
+            currentYearVal === today.getFullYear();
+
+          const isSelected = day === selectedDay;
+          const checkDateStr = `${currentYearVal}-${formattedMonth}-${String(day).padStart(2, '0')}`;
+          const hasEvent = events.some(e => e.baslangic.startsWith(checkDateStr));
+
+          return (
+            <div
+              key={day}
+              onClick={() => setSelectedDay(day)}
+              style={{
+                minHeight: '65px',
+                borderRadius: '12px',
+                padding: '8px',
+                cursor: 'pointer',
+                background: isSelected ? '#EBF1FF' : '#F8F7F4',
+                border: isSelected ? '2px solid #0057FF' : '1px solid #E6E4DD',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '12px', fontWeight: '800', color: isSelected ? '#0057FF' : '#14171F' }}>
+                  {day < 10 ? `0${day}` : day}
+                </span>
+                {isToday && (
+                  <span style={{ fontSize: '9px', fontWeight: '800', background: '#D4F7DC', color: '#00875A', padding: '2px 5px', borderRadius: '6px' }}>
+                    BUGÜN
+                  </span>
+                )}
+              </div>
+              {hasEvent && (
+                <span style={{ width: '6px', height: '6px', background: '#0057FF', borderRadius: '50%', alignSelf: 'flex-end' }} />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -289,22 +496,51 @@ export default function Calendar({ user }) {
       {/* ÜST GEZİNME ÇUBUĞU */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
 
-        {/* 4 ANA SEKME */}
-        <div style={{ display: 'inline-flex', background: '#FFFFFF', padding: '4px', borderRadius: '14px', border: '1px solid #E6E4DD', gap: '4px' }}>
+        {/* KAYAN ANİMASYONLU 4 ANA SEKME */}
+        <div
+          style={{
+            display: 'inline-grid',
+            gridTemplateColumns: 'repeat(4, 1fr)',
+            position: 'relative',
+            background: '#FFFFFF',
+            padding: '4px',
+            borderRadius: '14px',
+            border: '1px solid #E6E4DD'
+          }}
+        >
+          <div
+            style={{
+              position: 'absolute',
+              top: '4px',
+              bottom: '4px',
+              left: '4px',
+              width: 'calc((100% - 8px) / 4)',
+              background: '#0057FF',
+              borderRadius: '10px',
+              transform: `translateX(${activeTabIndex * 100}%)`,
+              transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+              pointerEvents: 'none',
+              zIndex: 1
+            }}
+          />
+
           <button
             onClick={() => setActiveTab('personal')}
             style={{
+              position: 'relative',
+              zIndex: 2,
               display: 'flex',
               alignItems: 'center',
+              justifyContent: 'center',
               gap: '6px',
-              padding: '8px 16px',
-              borderRadius: '10px',
+              padding: '8px 14px',
               border: 'none',
               fontSize: '13px',
               fontWeight: '700',
               cursor: 'pointer',
-              background: activeTab === 'personal' ? '#0057FF' : 'transparent',
-              color: activeTab === 'personal' ? '#FFFFFF' : '#5E6678'
+              background: 'transparent',
+              color: activeTab === 'personal' ? '#FFFFFF' : '#5E6678',
+              transition: 'color 0.2s'
             }}
           >
             <CalendarIcon size={15} /> Kişisel Takvim
@@ -313,17 +549,20 @@ export default function Calendar({ user }) {
           <button
             onClick={() => setActiveTab('group_calendar')}
             style={{
+              position: 'relative',
+              zIndex: 2,
               display: 'flex',
               alignItems: 'center',
+              justifyContent: 'center',
               gap: '6px',
-              padding: '8px 16px',
-              borderRadius: '10px',
+              padding: '8px 14px',
               border: 'none',
               fontSize: '13px',
               fontWeight: '700',
               cursor: 'pointer',
-              background: activeTab === 'group_calendar' ? '#0057FF' : 'transparent',
-              color: activeTab === 'group_calendar' ? '#FFFFFF' : '#5E6678'
+              background: 'transparent',
+              color: activeTab === 'group_calendar' ? '#FFFFFF' : '#5E6678',
+              transition: 'color 0.2s'
             }}
           >
             <Users size={15} /> Grup Takvimi
@@ -332,17 +571,20 @@ export default function Calendar({ user }) {
           <button
             onClick={() => setActiveTab('friends')}
             style={{
+              position: 'relative',
+              zIndex: 2,
               display: 'flex',
               alignItems: 'center',
+              justifyContent: 'center',
               gap: '6px',
-              padding: '8px 16px',
-              borderRadius: '10px',
+              padding: '8px 14px',
               border: 'none',
               fontSize: '13px',
               fontWeight: '700',
               cursor: 'pointer',
-              background: activeTab === 'friends' ? '#0057FF' : 'transparent',
-              color: activeTab === 'friends' ? '#FFFFFF' : '#5E6678'
+              background: 'transparent',
+              color: activeTab === 'friends' ? '#FFFFFF' : '#5E6678',
+              transition: 'color 0.2s'
             }}
           >
             <UserPlus size={15} /> Arkadaşlar
@@ -356,18 +598,20 @@ export default function Calendar({ user }) {
           <button
             onClick={() => setActiveTab('groups')}
             style={{
+              position: 'relative',
+              zIndex: 2,
               display: 'flex',
               alignItems: 'center',
+              justifyContent: 'center',
               gap: '6px',
-              padding: '8px 16px',
-              borderRadius: '10px',
+              padding: '8px 14px',
               border: 'none',
               fontSize: '13px',
               fontWeight: '700',
               cursor: 'pointer',
-              background: activeTab === 'groups' ? '#0057FF' : 'transparent',
+              background: 'transparent',
               color: activeTab === 'groups' ? '#FFFFFF' : '#5E6678',
-              position: 'relative'
+              transition: 'color 0.2s'
             }}
           >
             <Layers size={15} /> Gruplarım
@@ -379,101 +623,50 @@ export default function Calendar({ user }) {
           </button>
         </div>
 
-        {/* Sağ: Ay Seçici & Plan Ekle Butonu */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#FFFFFF', padding: '6px 12px', borderRadius: '10px', border: '1px solid #E6E4DD' }}>
-            <button style={{ border: 'none', background: 'transparent', cursor: 'pointer' }}><ChevronLeft size={16} /></button>
-            <span style={{ fontSize: '13px', fontWeight: '800', color: '#14171F' }}>Ağustos 2026</span>
-            <button style={{ border: 'none', background: 'transparent', cursor: 'pointer' }}><ChevronRight size={16} /></button>
-          </div>
-
-          <button
-            onClick={() => setIsAddPlanModalOpen(true)}
-            className="btn-primary"
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '10px', fontSize: '13px', fontWeight: '700' }}
-          >
-            <Plus size={16} /> Plan Ekle
-          </button>
-        </div>
+        {/* Sağ: Plan Ekle Butonu */}
+        <button
+          onClick={() => setIsAddPlanModalOpen(true)}
+          className="btn-primary"
+          style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 18px', borderRadius: '12px', fontSize: '13px', fontWeight: '700' }}
+        >
+          <Plus size={16} /> Plan Ekle
+        </button>
       </div>
 
       {/* ======================================================== */}
       {/* 1. SEKME: KİŞİSEL TAKVİM                                 */}
       {/* ======================================================== */}
       {activeTab === 'personal' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '20px' }}>
-          {/* Ay Izgarası */}
-          <div style={{ background: '#FFFFFF', border: '1px solid #E6E4DD', borderRadius: '20px', padding: '20px' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '8px', textAlign: 'center', marginBottom: '10px' }}>
-              {['PZT', 'SAL', 'ÇAR', 'PER', 'CUM', 'CMT', 'PAZ'].map(d => (
-                <span key={d} style={{ fontSize: '11px', fontWeight: '800', color: '#949DAE' }}>{d}</span>
-              ))}
-            </div>
+        <div className="tab-content-animated" style={{ display: 'grid', gridTemplateColumns: '1.8fr 1.2fr', gap: '20px' }}>
+          {renderMonthGrid()}
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '8px' }}>
-              {Array.from({ length: 31 }, (_, i) => i + 1).map(day => {
-                const dateStr = `2026-08-${day < 10 ? '0' + day : day}`;
-                const hasEvent = events.some(e => e.baslangic.startsWith(dateStr));
-
-                return (
-                  <div
-                    key={day}
-                    onClick={() => setSelectedDay(day)}
-                    style={{
-                      minHeight: '65px',
-                      borderRadius: '12px',
-                      padding: '8px',
-                      cursor: 'pointer',
-                      background: day === selectedDay ? '#EBF1FF' : '#F8F7F4',
-                      border: day === selectedDay ? '2px solid #0057FF' : '1px solid #E6E4DD',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      justifyContent: 'space-between'
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '12px', fontWeight: '800', color: day === selectedDay ? '#0057FF' : '#14171F' }}>
-                        {day < 10 ? `0${day}` : day}
-                      </span>
-                      {day === 14 && (
-                        <span style={{ fontSize: '9px', fontWeight: '800', background: '#D4F7DC', color: '#00875A', padding: '2px 5px', borderRadius: '6px' }}>
-                          BUGÜN
-                        </span>
-                      )}
-                    </div>
-                    {hasEvent && (
-                      <span style={{ width: '6px', height: '6px', background: '#0057FF', borderRadius: '50%', alignSelf: 'flex-end' }} />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Günün Detayı */}
-          <div style={{ background: '#FFFFFF', border: '1px solid #E6E4DD', borderRadius: '20px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          {/* Sağ: Günün Detayı */}
+          <div style={{ background: '#FFFFFF', border: '1px solid #E6E4DD', borderRadius: '20px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <div>
-              <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#14171F', marginBottom: '2px' }}>
-                🗓️ {selectedDay} Ağustos 2026
-              </h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+                <CalendarIcon size={18} color="#0057FF" />
+                <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#14171F', margin: 0 }}>
+                  {selectedDay} {monthNames[currentMonthIndex]} {currentYearVal}
+                </h3>
+              </div>
               <span style={{ fontSize: '12px', color: '#5E6678' }}>
                 {selectedDayEvents.length} kayıtlı kişisel plan
               </span>
             </div>
 
             {selectedDayEvents.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '30px 10px', background: '#F8F7F4', borderRadius: '16px', border: '1px dashed #E6E4DD' }}>
-                <span style={{ fontSize: '24px' }}>☕</span>
-                <p style={{ fontSize: '13px', color: '#5E6678', marginTop: '8px' }}>Bu güne ait kayıtlı planınız yok.</p>
+              <div style={{ textAlign: 'center', padding: '40px 10px', background: '#F8F7F4', borderRadius: '16px', border: '1px dashed #E6E4DD' }}>
+                <Coffee size={28} color="#949DAE" style={{ margin: '0 auto' }} />
+                <p style={{ fontSize: '13px', color: '#5E6678', marginTop: '8px', margin: 0 }}>Bu güne ait kayıtlı planınız yok.</p>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '350px', overflowY: 'auto' }}>
                 {selectedDayEvents.map(e => (
-                  <div key={e.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: '#F8F7F4', borderRadius: '10px', borderLeft: '4px solid #0057FF' }}>
+                  <div key={e.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#F8F7F4', borderRadius: '10px', borderLeft: '4px solid #0057FF' }}>
                     <div>
                       <strong style={{ fontSize: '13px', color: '#14171F', display: 'block' }}>{e.baslik}</strong>
-                      <span style={{ fontSize: '11px', color: '#5E6678' }}>
-                        🕒 {e.baslangic.substring(11, 16)} - {e.bitis.substring(11, 16)}
+                      <span style={{ fontSize: '11px', color: '#5E6678', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
+                        <Clock size={11} /> {e.baslangic.substring(11, 16)} - {e.bitis.substring(11, 16)}
                       </span>
                     </div>
                     <button onClick={() => handleDeleteEvent(e.id)} style={{ border: 'none', background: 'transparent', color: '#E53935', cursor: 'pointer' }}>
@@ -488,10 +681,10 @@ export default function Calendar({ user }) {
       )}
 
       {/* ======================================================== */}
-      {/* 2. SEKME: GRUP TAKVİMİ & BULUŞMA TEKLİFİ ETME             */}
+      {/* 2. SEKME: GRUP TAKVİMİ                                   */}
       {/* ======================================================== */}
       {activeTab === 'group_calendar' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div className="tab-content-animated" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#FFFFFF', padding: '12px 18px', borderRadius: '16px', border: '1px solid #E6E4DD' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -515,64 +708,28 @@ export default function Calendar({ user }) {
               )}
             </div>
 
-            <div style={{ fontSize: '11px', color: '#5E6678', fontWeight: '600' }}>
-              👥 24 saatlik akıllı grup boş zaman eşleştiricisi aktif.
+            <div style={{ fontSize: '11px', color: '#5E6678', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <Clock size={13} color="#0057FF" /> 24 saatlik akıllı grup boş zaman eşleştiricisi aktif.
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1.6fr', gap: '20px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1.8fr 1.2fr', gap: '20px' }}>
+            {renderMonthGrid()}
 
-            {/* Sol: Ay Takvimi */}
-            <div style={{ background: '#FFFFFF', border: '1px solid #E6E4DD', borderRadius: '20px', padding: '20px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '8px', textAlign: 'center', marginBottom: '10px' }}>
-                {['PZT', 'SAL', 'ÇAR', 'PER', 'CUM', 'CMT', 'PAZ'].map(d => (
-                  <span key={d} style={{ fontSize: '11px', fontWeight: '800', color: '#949DAE' }}>{d}</span>
-                ))}
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '8px' }}>
-                {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
-                  <div
-                    key={day}
-                    onClick={() => setSelectedDay(day)}
-                    style={{
-                      minHeight: '65px',
-                      borderRadius: '12px',
-                      padding: '8px',
-                      cursor: 'pointer',
-                      background: day === selectedDay ? '#EBF1FF' : '#F8F7F4',
-                      border: day === selectedDay ? '2px solid #0057FF' : '1px solid #E6E4DD',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      justifyContent: 'space-between'
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '12px', fontWeight: '800', color: day === selectedDay ? '#0057FF' : '#14171F' }}>
-                        {day < 10 ? `0${day}` : day}
-                      </span>
-                      {day === 14 && (
-                        <span style={{ fontSize: '9px', fontWeight: '800', background: '#D4F7DC', color: '#00875A', padding: '2px 5px', borderRadius: '6px' }}>
-                          BUGÜN
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Sağ: Grup Meşguliyet & Buluşma Teklifi Etme */}
+            {/* Sağ: Grup Meşguliyet & Teklif Formu */}
             <div style={{ background: '#FFFFFF', border: '1px solid #E6E4DD', borderRadius: '20px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
 
               <div>
-                <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#14171F', marginBottom: '2px' }}>
-                  🗓️ {selectedDay} Ağustos 2026 — {selectedGroup?.grup_adi}
-                </h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+                  <CalendarIcon size={18} color="#0057FF" />
+                  <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#14171F', margin: 0 }}>
+                    {selectedDay} {monthNames[currentMonthIndex]} {currentYearVal} — {selectedGroup?.grup_adi}
+                  </h3>
+                </div>
                 <span style={{ fontSize: '12px', color: '#5E6678' }}>Üyelerin 24 saatlik meşguliyet durumu</span>
               </div>
 
-              {/* Meşguliyet Listesi */}
+              {/* Meşguliyet Listesi (Madde 11: Özel başlıklar gizli) */}
               <div>
                 <span style={{ fontSize: '11px', fontWeight: '800', color: '#E53935', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '8px' }}>
                   <AlertCircle size={13} /> Üye Meşguliyetleri (Dolu Saatler)
@@ -584,19 +741,19 @@ export default function Calendar({ user }) {
                     return (
                       <div key={uye.kullanici_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#F8F7F4', borderRadius: '8px', border: '1px solid #E6E4DD' }}>
                         <span style={{ fontSize: '12px', fontWeight: '700', color: '#14171F' }}>
-                          👤 {uye.isim} (@{uye.kullanici_adi})
+                          {uye.isim} (@{uye.kullanici_adi})
                         </span>
                         {hasEvents ? (
                           <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                             {uye.etkinlikler.map(e => (
-                              <span key={e.id} style={{ background: '#FEECEB', color: '#E53935', fontSize: '11px', fontWeight: '700', padding: '2px 6px', borderRadius: '6px' }}>
-                                ⛔ {e.baslangic} - {e.bitis} Dolu ({e.baslik})
+                              <span key={e.id} style={{ background: '#FEECEB', color: '#E53935', fontSize: '11px', fontWeight: '700', padding: '2px 6px', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                <AlertCircle size={10} /> {e.baslangic} - {e.bitis} (Dolu)
                               </span>
                             ))}
                           </div>
                         ) : (
-                          <span style={{ color: '#00875A', fontSize: '11px', fontWeight: '700', background: '#D4F7DC', padding: '2px 6px', borderRadius: '6px' }}>
-                            ✅ Tüm Gün Müsait
+                          <span style={{ color: '#00875A', fontSize: '11px', fontWeight: '700', background: '#D4F7DC', padding: '2px 6px', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                            <CheckCircle2 size={11} /> Tüm Gün Müsait
                           </span>
                         )}
                       </div>
@@ -642,7 +799,7 @@ export default function Calendar({ user }) {
                 </div>
               </div>
 
-              {/* BULUŞMA TEKLİFİ FORMU */}
+              {/* Teklif Formu */}
               <div style={{ borderTop: '1px solid #E6E4DD', paddingTop: '12px' }}>
                 {!showProposalBox ? (
                   <button
@@ -693,25 +850,28 @@ export default function Calendar({ user }) {
       )}
 
       {/* ======================================================== */}
-      {/* 3. SEKME: GRUPLARIM & OYLAMA PANELİ                      */}
+      {/* 3. SEKME: GRUPLARIM                                      */}
       {/* ======================================================== */}
       {activeTab === 'groups' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '20px' }}>
+        <div className="tab-content-animated" style={{ display: 'grid', gridTemplateColumns: '1.8fr 1.2fr', gap: '20px' }}>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
-            {/* GELEN GRUP DAVETLERİ (ARKADAŞLARINDAN GELENLER) */}
+            {/* Gelen Grup Katılım Davetleri */}
             {friendsData.grup_istekleri?.length > 0 && (
               <div style={{ background: '#FFF8E6', border: '1px solid #FFE082', borderRadius: '20px', padding: '20px' }}>
-                <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#B78103', marginBottom: '12px' }}>
-                  📩 Gelen Grup Katılım Davetleri ({friendsData.grup_istekleri.length})
-                </h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                  <Mail size={17} color="#B78103" />
+                  <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#B78103', margin: 0 }}>
+                    Gelen Grup Katılım Davetleri ({friendsData.grup_istekleri.length})
+                  </h3>
+                </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {friendsData.grup_istekleri.map(gd => (
                     <div key={gd.davet_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#FFFFFF', padding: '10px 14px', borderRadius: '10px', border: '1px solid #FFE082' }}>
                       <div>
                         <strong style={{ fontSize: '13px', color: '#14171F', display: 'block' }}>{gd.grup_adi}</strong>
-                        <span style={{ fontSize: '11px', color: '#5E6678' }}>👤 <strong>{gd.gonderen_isim}</strong> sizi bu gruba davet etti.</span>
+                        <span style={{ fontSize: '11px', color: '#5E6678' }}><strong>{gd.gonderen_isim}</strong> sizi bu gruba davet etti.</span>
                       </div>
                       <div style={{ display: 'flex', gap: '6px' }}>
                         <button onClick={() => handleRespondGroupInvite(gd.davet_id, true)} style={{ background: '#00875A', color: '#FFF', border: 'none', borderRadius: '6px', padding: '6px 10px', cursor: 'pointer', fontSize: '11px', fontWeight: '700' }}>Kabul Et</button>
@@ -723,14 +883,17 @@ export default function Calendar({ user }) {
               </div>
             )}
 
-            {/* OYLANMAYI BEKLEYEN BULUŞMA TEKLİFLERİ */}
+            {/* Bekleyen Buluşma Teklifleri */}
             <div style={{ background: '#FFFFFF', border: '1px solid #E6E4DD', borderRadius: '20px', padding: '24px' }}>
-              <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#0057FF', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                📬 Gelen Buluşma Teklifleri ({groupProposals.length})
-              </h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+                <Clock size={18} color="#0057FF" />
+                <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#0057FF', margin: 0 }}>
+                  Gelen Buluşma Teklifleri ({groupProposals.length})
+                </h3>
+              </div>
 
               {groupProposals.length === 0 ? (
-                <p style={{ fontSize: '13px', color: '#5E6678' }}>Bekleyen yeni buluşma teklifi yok.</p>
+                <p style={{ fontSize: '13px', color: '#5E6678', margin: 0 }}>Bekleyen yeni buluşma teklifi yok.</p>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   {groupProposals.map(prop => (
@@ -743,7 +906,7 @@ export default function Calendar({ user }) {
                       </div>
 
                       <p style={{ fontSize: '12px', color: '#5E6678', margin: 0 }}>
-                        👤 <strong>{prop.teklif_eden_isim}</strong> buluşmak istiyor • 🗓️ {prop.tarih} (🕒 {prop.baslangic_saat} - {prop.bitis_saat})
+                        <strong>{prop.teklif_eden_isim}</strong> buluşmak istiyor • {prop.tarih} ({prop.baslangic_saat} - {prop.bitis_saat})
                       </p>
 
                       <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
@@ -797,18 +960,90 @@ export default function Calendar({ user }) {
 
             {/* Dahil Olduğum Gruplar */}
             <div style={{ background: '#FFFFFF', border: '1px solid #E6E4DD', borderRadius: '20px', padding: '24px' }}>
-              <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#14171F', marginBottom: '16px' }}>
-                🛡️ Dahil Olduğum Gruplar ({groups.length})
-              </h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                <Shield size={18} color="#0057FF" />
+                <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#14171F', margin: 0 }}>
+                  Dahil Olduğum Gruplar ({groups.length})
+                </h3>
+              </div>
+
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {groups.map(g => (
-                  <div key={g.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: '#F8F7F4', borderRadius: '12px' }}>
-                    <div>
-                      <strong style={{ fontSize: '14px', color: '#14171F', display: 'block' }}>{g.grup_adi}</strong>
-                      <span style={{ fontSize: '11px', color: '#5E6678' }}>{g.uye_sayisi} Üye • Davet Kodu: <code style={{ color: '#0057FF', fontWeight: 'bold' }}>{g.davet_kodu}</code></span>
+                {groups.map(g => {
+                  const isOwner = g.olusturan_id === user?.id;
+
+                  return (
+                    <div
+                      key={g.id}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: '12px 16px',
+                        background: '#F8F7F4',
+                        borderRadius: '12px',
+                        border: isOwner ? '1px solid #C7DBFF' : '1px solid #E6E4DD'
+                      }}
+                    >
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <strong style={{ fontSize: '14px', color: '#14171F' }}>{g.grup_adi}</strong>
+                          {isOwner && (
+                            <span style={{ fontSize: '10px', fontWeight: '800', background: '#EBF1FF', color: '#0057FF', padding: '2px 6px', borderRadius: '6px' }}>
+                              KURUCU
+                            </span>
+                          )}
+                        </div>
+                        <span style={{ fontSize: '11px', color: '#5E6678' }}>
+                          {g.uye_sayisi} Üye • Davet Kodu: <code style={{ color: '#0057FF', fontWeight: 'bold' }}>{g.davet_kodu}</code>
+                        </span>
+                      </div>
+
+                      {isOwner && (
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <button
+                            onClick={() => {
+                              setEditingGroup(g);
+                              setEditGroupName(g.grup_adi);
+                            }}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              background: '#FFFFFF',
+                              border: '1px solid #E6E4DD',
+                              color: '#14171F',
+                              padding: '6px 10px',
+                              borderRadius: '8px',
+                              fontSize: '11px',
+                              fontWeight: '700',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <Edit2 size={12} /> Düzenle
+                          </button>
+                          <button
+                            onClick={() => handleDeleteGroup(g.id)}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              background: '#FEECEB',
+                              border: '1px solid #FCA5A5',
+                              color: '#E53935',
+                              padding: '6px 10px',
+                              borderRadius: '8px',
+                              fontSize: '11px',
+                              fontWeight: '700',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <Trash2 size={12} /> Sil
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
@@ -816,53 +1051,89 @@ export default function Calendar({ user }) {
 
           {/* Sağ: Yeni Grup Kur & Katıl */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div style={{ background: '#FFFFFF', border: '1px solid #E6E4DD', borderRadius: '20px', padding: '20px' }}>
-              <h4 style={{ fontSize: '14px', fontWeight: '800', color: '#14171F', marginBottom: '10px' }}>✨ Yeni Grup Kur</h4>
+            <div style={{ background: '#FFFFFF', border: '1px solid #E6E4DD', borderRadius: '20px', padding: '24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+                <PlusCircle size={17} color="#0057FF" />
+                <h4 style={{ fontSize: '15px', fontWeight: '800', color: '#14171F', margin: 0 }}>Yeni Grup Kur</h4>
+              </div>
+
               <form onSubmit={async (e) => {
                 e.preventDefault();
                 if (!newGroupName.trim()) return;
-                await fetch(`${API_BASE}/api/groups/create`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ grup_adi: newGroupName.trim(), olusturan_id: user.id })
-                });
-                setNewGroupName('');
-                fetchGroups();
-              }} style={{ display: 'flex', gap: '8px' }}>
+                try {
+                  const res = await authFetch('/api/groups/create', {
+                    method: 'POST',
+                    body: JSON.stringify({ grup_adi: newGroupName.trim() })
+                  });
+                  const d = await res.json();
+                  if (res.ok) {
+                    showAlert(`"${newGroupName}" grubu başarıyla kuruldu! Davet kodunuz: ${d.davet_kodu}`, 'Grup Kuruldu');
+                    setNewGroupName('');
+                    fetchGroups();
+                  } else {
+                    showAlert(d.detail || 'Grup oluşturulamadı.', 'Hata');
+                  }
+                } catch {
+                  showAlert('Sunucu hatası oluştu.', 'Hata');
+                }
+              }} style={{ display: 'flex', gap: '10px' }}>
                 <input
                   type="text"
                   placeholder="Grup Adı"
                   value={newGroupName}
                   onChange={(e) => setNewGroupName(e.target.value)}
-                  style={{ flex: 1, padding: '8px 12px', borderRadius: '8px', border: '1px solid #E6E4DD', fontSize: '13px' }}
+                  style={{ flex: 1, height: '42px', padding: '0 14px', borderRadius: '10px', border: '1px solid #E6E4DD', fontSize: '13px' }}
                 />
-                <button type="submit" className="btn-primary" style={{ padding: '8px 14px', borderRadius: '8px', fontSize: '12px' }}>Oluştur</button>
+                <button
+                  type="submit"
+                  className="btn-primary"
+                  style={{ minWidth: '95px', height: '42px', borderRadius: '10px', fontSize: '13px', fontWeight: '700' }}
+                >
+                  Oluştur
+                </button>
               </form>
             </div>
 
-            <div style={{ background: '#FFFFFF', border: '1px solid #E6E4DD', borderRadius: '20px', padding: '20px' }}>
-              <h4 style={{ fontSize: '14px', fontWeight: '800', color: '#14171F', marginBottom: '10px' }}>🔑 Davet Kodu ile Katıl</h4>
+            <div style={{ background: '#FFFFFF', border: '1px solid #E6E4DD', borderRadius: '20px', padding: '24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+                <KeyRound size={17} color="#0057FF" />
+                <h4 style={{ fontSize: '15px', fontWeight: '800', color: '#14171F', margin: 0 }}>Davet Kodu ile Katıl</h4>
+              </div>
+
               <form onSubmit={async (e) => {
                 e.preventDefault();
                 if (!joinToken.trim()) return;
-                const res = await fetch(`${API_BASE}/api/groups/join`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ token: joinToken.trim(), kullanici_id: user.id })
-                });
-                const data = await res.json();
-                alert(data.message || data.detail);
-                setJoinToken('');
-                fetchGroups();
-              }} style={{ display: 'flex', gap: '8px' }}>
+                try {
+                  const res = await authFetch('/api/groups/join', {
+                    method: 'POST',
+                    body: JSON.stringify({ token: joinToken.trim() })
+                  });
+                  const data = await res.json();
+                  if (res.ok) {
+                    showAlert(data.message, 'Gruba Katıldınız');
+                    setJoinToken('');
+                    fetchGroups();
+                  } else {
+                    showAlert(data.detail || 'Gruba katılınamadı.', 'Hata');
+                  }
+                } catch {
+                  showAlert('Sunucu hatası oluştu.', 'Hata');
+                }
+              }} style={{ display: 'flex', gap: '10px' }}>
                 <input
                   type="text"
                   placeholder="Davet Kodu (Örn: FLW-A1B2C3)"
                   value={joinToken}
                   onChange={(e) => setJoinToken(e.target.value)}
-                  style={{ flex: 1, padding: '8px 12px', borderRadius: '8px', border: '1px solid #E6E4DD', fontSize: '13px' }}
+                  style={{ flex: 1, height: '42px', padding: '0 14px', borderRadius: '10px', border: '1px solid #E6E4DD', fontSize: '13px' }}
                 />
-                <button type="submit" className="btn-primary" style={{ padding: '8px 14px', borderRadius: '8px', fontSize: '12px' }}>Katıl</button>
+                <button
+                  type="submit"
+                  className="btn-primary"
+                  style={{ minWidth: '95px', height: '42px', borderRadius: '10px', fontSize: '13px', fontWeight: '700' }}
+                >
+                  Katıl
+                </button>
               </form>
             </div>
           </div>
@@ -871,19 +1142,21 @@ export default function Calendar({ user }) {
       )}
 
       {/* ======================================================== */}
-      {/* 4. SEKME: ARKADAŞLAR & GRUBA DOĞRUDAN DAVET ETME         */}
+      {/* 4. SEKME: ARKADAŞLAR                                     */}
       {/* ======================================================== */}
       {activeTab === 'friends' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '20px' }}>
+        <div className="tab-content-animated" style={{ display: 'grid', gridTemplateColumns: '1.8fr 1.2fr', gap: '20px' }}>
 
-          {/* Sol: Arkadaş Listesi + "Gruba Davet Et" Butonu */}
           <div style={{ background: '#FFFFFF', border: '1px solid #E6E4DD', borderRadius: '20px', padding: '24px' }}>
-            <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#14171F', marginBottom: '16px' }}>
-              👥 Arkadaşlarım ({friendsData.arkadaslar.length})
-            </h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+              <Users size={18} color="#0057FF" />
+              <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#14171F', margin: 0 }}>
+                Arkadaşlarım ({friendsData.arkadaslar.length})
+              </h3>
+            </div>
 
             {friendsData.arkadaslar.length === 0 ? (
-              <p style={{ fontSize: '13px', color: '#5E6678' }}>Henüz ekli bir arkadaşınız bulunmuyor.</p>
+              <p style={{ fontSize: '13px', color: '#5E6678', margin: 0 }}>Henüz ekli bir arkadaşınız bulunmuyor.</p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {friendsData.arkadaslar.map(f => (
@@ -893,7 +1166,6 @@ export default function Calendar({ user }) {
                       <span style={{ fontSize: '11px', color: '#5E6678' }}>@{f.kullanici_adi}</span>
                     </div>
 
-                    {/* YENİ: ARKADAŞI GRUBA DAVET ET BUTONU */}
                     <button
                       onClick={() => {
                         setInviteModalFriend(f);
@@ -921,37 +1193,58 @@ export default function Calendar({ user }) {
             )}
           </div>
 
-          {/* Sağ: Arkadaş Ekle & Gelen İstekler */}
+          {/* Sağ: Yeni Arkadaş Ekle & İstekler */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div style={{ background: '#FFFFFF', border: '1px solid #E6E4DD', borderRadius: '20px', padding: '20px' }}>
-              <h4 style={{ fontSize: '14px', fontWeight: '800', color: '#14171F', marginBottom: '10px' }}>🔍 Yeni Arkadaş Ekle</h4>
+            <div style={{ background: '#FFFFFF', border: '1px solid #E6E4DD', borderRadius: '20px', padding: '24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+                <Search size={17} color="#0057FF" />
+                <h4 style={{ fontSize: '15px', fontWeight: '800', color: '#14171F', margin: 0 }}>Yeni Arkadaş Ekle</h4>
+              </div>
+
               <form onSubmit={async (e) => {
                 e.preventDefault();
-                const res = await fetch(`${API_BASE}/api/friends/request`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ gonderen_id: user.id, hedef_kullanici_adi: newFriendUsername.trim() })
-                });
-                const d = await res.json();
-                alert(d.message || d.detail);
-                setNewFriendUsername('');
-                fetchFriends();
-              }} style={{ display: 'flex', gap: '8px' }}>
+                try {
+                  const res = await authFetch('/api/friends/request', {
+                    method: 'POST',
+                    body: JSON.stringify({ hedef_kullanici_adi: newFriendUsername.trim() })
+                  });
+                  const d = await res.json();
+                  if (res.ok) {
+                    showAlert(d.message, 'İstek Gönderildi');
+                    setNewFriendUsername('');
+                    fetchFriends();
+                  } else {
+                    showAlert(d.detail || 'İstek gönderilemedi.', 'Hata');
+                  }
+                } catch {
+                  showAlert('Sunucu hatası oluştu.', 'Hata');
+                }
+              }} style={{ display: 'flex', gap: '10px' }}>
                 <input
                   type="text"
                   placeholder="Kullanıcı adı yazın (Örn: ahmet)"
                   value={newFriendUsername}
                   onChange={(e) => setNewFriendUsername(e.target.value)}
-                  style={{ flex: 1, padding: '8px 12px', borderRadius: '8px', border: '1px solid #E6E4DD', fontSize: '13px' }}
+                  style={{ flex: 1, height: '42px', padding: '0 14px', borderRadius: '10px', border: '1px solid #E6E4DD', fontSize: '13px' }}
                 />
-                <button type="submit" className="btn-primary" style={{ padding: '8px 14px', borderRadius: '8px', fontSize: '12px' }}>Gönder</button>
+                <button
+                  type="submit"
+                  className="btn-primary"
+                  style={{ minWidth: '95px', height: '42px', borderRadius: '10px', fontSize: '13px', fontWeight: '700' }}
+                >
+                  Gönder
+                </button>
               </form>
             </div>
 
-            <div style={{ background: '#FFFFFF', border: '1px solid #E6E4DD', borderRadius: '20px', padding: '20px' }}>
-              <h4 style={{ fontSize: '14px', fontWeight: '800', color: '#14171F', marginBottom: '10px' }}>📬 Gelen Arkadaşlık İstekleri ({friendsData.istekler.length})</h4>
+            <div style={{ background: '#FFFFFF', border: '1px solid #E6E4DD', borderRadius: '20px', padding: '24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+                <Mail size={17} color="#0057FF" />
+                <h4 style={{ fontSize: '15px', fontWeight: '800', color: '#14171F', margin: 0 }}>Gelen Arkadaşlık İstekleri ({friendsData.istekler.length})</h4>
+              </div>
+
               {friendsData.istekler.length === 0 ? (
-                <p style={{ fontSize: '12px', color: '#5E6678' }}>Bekleyen arkadaşlık isteği yok.</p>
+                <p style={{ fontSize: '12px', color: '#5E6678', margin: 0 }}>Bekleyen arkadaşlık isteği yok.</p>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {friendsData.istekler.map(req => (
@@ -959,17 +1252,15 @@ export default function Calendar({ user }) {
                       <span style={{ fontSize: '12px', fontWeight: '700' }}>@{req.kullanici_adi}</span>
                       <div style={{ display: 'flex', gap: '6px' }}>
                         <button onClick={async () => {
-                          await fetch(`${API_BASE}/api/friends/respond`, {
+                          await authFetch('/api/friends/respond', {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ istek_id: req.istek_id, kabul_mu: true })
                           });
                           fetchFriends();
                         }} style={{ background: '#00875A', color: '#FFF', border: 'none', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer' }}><Check size={12} /></button>
                         <button onClick={async () => {
-                          await fetch(`${API_BASE}/api/friends/respond`, {
+                          await authFetch('/api/friends/respond', {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ istek_id: req.istek_id, kabul_mu: false })
                           });
                           fetchFriends();
@@ -986,14 +1277,201 @@ export default function Calendar({ user }) {
       )}
 
       {/* ======================================================== */}
-      {/* ARKADAŞI GRUBA DAVET ETME MODALI                         */}
+      {/* MODALLAR                                                 */}
       {/* ======================================================== */}
+
+      {/* 1. ÖZEL BİLDİRİM & ONAY PENCERESİ */}
+      {dialogConfig.isOpen && (
+        <div
+          className="modal-overlay"
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(15, 23, 42, 0.45)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '20px'
+          }}
+        >
+          <div
+            style={{
+              background: '#FFFFFF',
+              borderRadius: '24px',
+              maxWidth: '440px',
+              width: '100%',
+              padding: '26px',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              border: '1px solid #E6E4DD',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '16px',
+              animation: 'tabFadeIn 0.2s ease-out'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div
+                style={{
+                  width: '42px',
+                  height: '42px',
+                  borderRadius: '12px',
+                  background: dialogConfig.isDanger ? '#FEECEB' : '#EBF1FF',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: dialogConfig.isDanger ? '#E53935' : '#0057FF'
+                }}
+              >
+                {dialogConfig.isDanger ? <AlertTriangle size={22} /> : <Info size={22} />}
+              </div>
+              <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#14171F', margin: 0 }}>
+                {dialogConfig.title}
+              </h3>
+            </div>
+
+            <p style={{ fontSize: '14px', color: '#5E6678', lineHeight: '1.5', margin: '4px 0 12px 0' }}>
+              {dialogConfig.message}
+            </p>
+
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              {dialogConfig.type === 'confirm' && (
+                <button
+                  type="button"
+                  onClick={closeDialog}
+                  style={{
+                    padding: '10px 18px',
+                    borderRadius: '10px',
+                    border: '1px solid #E6E4DD',
+                    background: '#F8F7F4',
+                    color: '#5E6678',
+                    fontSize: '13px',
+                    fontWeight: '700',
+                    cursor: 'pointer'
+                  }}
+                >
+                  İptal
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (dialogConfig.onConfirm) {
+                    dialogConfig.onConfirm();
+                  }
+                  closeDialog();
+                }}
+                style={{
+                  padding: '10px 20px',
+                  borderRadius: '10px',
+                  border: 'none',
+                  background: dialogConfig.isDanger ? '#E53935' : '#0057FF',
+                  color: '#FFFFFF',
+                  fontSize: '13px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  boxShadow: dialogConfig.isDanger
+                    ? '0 4px 12px rgba(229, 57, 53, 0.25)'
+                    : '0 4px 12px rgba(0, 87, 255, 0.25)'
+                }}
+              >
+                {dialogConfig.type === 'confirm' ? 'Evet, Onayla' : 'Tamam'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 2. GRUP DÜZENLEME MODALI */}
+      {editingGroup && (
+        <div
+          className="modal-overlay"
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(15, 23, 42, 0.45)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '20px'
+          }}
+        >
+          <div className="modal-content" style={{ maxWidth: '400px', background: '#FFF', borderRadius: '20px', padding: '24px' }}>
+            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Edit2 size={16} color="#0057FF" />
+                <h2 style={{ fontSize: '17px', fontWeight: '800', margin: 0 }}>Grubu Düzenle</h2>
+              </div>
+              <button className="close-btn" onClick={() => setEditingGroup(null)} style={{ border: 'none', background: 'transparent', fontSize: '20px', cursor: 'pointer' }}>&times;</button>
+            </div>
+
+            <form onSubmit={handleUpdateGroup} className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div>
+                <label style={{ fontSize: '11px', fontWeight: '700', color: '#5E6678', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
+                  Grup Adı
+                </label>
+                <input
+                  type="text"
+                  value={editGroupName}
+                  onChange={(e) => setEditGroupName(e.target.value)}
+                  required
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #E6E4DD', fontSize: '13px' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button type="submit" className="btn-primary" style={{ flex: 1, padding: '10px', fontSize: '13px' }}>
+                  Kaydet
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditingGroup(null)}
+                  style={{ background: '#F8F7F4', border: '1px solid #E6E4DD', padding: '10px 16px', borderRadius: '8px', cursor: 'pointer', fontSize: '13px' }}
+                >
+                  İptal
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 3. ARKADAŞI GRUBA DAVET ET MODALI */}
       {inviteModalFriend && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '400px' }}>
-            <div className="modal-header">
-              <h2>👥 Gruba Davet Et</h2>
-              <button className="close-btn" onClick={() => setInviteModalFriend(null)}>&times;</button>
+        <div
+          className="modal-overlay"
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(15, 23, 42, 0.45)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '20px'
+          }}
+        >
+          <div className="modal-content" style={{ maxWidth: '400px', background: '#FFF', borderRadius: '20px', padding: '24px' }}>
+            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <UserPlus size={16} color="#0057FF" />
+                <h2 style={{ fontSize: '17px', fontWeight: '800', margin: 0 }}>Gruba Davet Et</h2>
+              </div>
+              <button className="close-btn" onClick={() => setInviteModalFriend(null)} style={{ border: 'none', background: 'transparent', fontSize: '20px', cursor: 'pointer' }}>&times;</button>
             </div>
 
             <form onSubmit={handleInviteFriendToGroup} className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
@@ -1033,15 +1511,32 @@ export default function Calendar({ user }) {
         </div>
       )}
 
-      {/* ======================================================== */}
-      {/* KİŞİSEL PLAN EKLEME MODALI                               */}
-      {/* ======================================================== */}
+      {/* 4. PLAN EKLEME MODALI */}
       {isAddPlanModalOpen && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '420px' }}>
-            <div className="modal-header">
-              <h2>🗓️ Yeni Plan Ekle ({selectedDay} Ağustos 2026)</h2>
-              <button className="close-btn" onClick={() => setIsAddPlanModalOpen(false)}>&times;</button>
+        <div
+          className="modal-overlay"
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(15, 23, 42, 0.45)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '20px'
+          }}
+        >
+          <div className="modal-content" style={{ maxWidth: '420px', background: '#FFF', borderRadius: '20px', padding: '24px' }}>
+            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <CalendarIcon size={16} color="#0057FF" />
+                <h2 style={{ fontSize: '17px', fontWeight: '800', margin: 0 }}>Yeni Plan Ekle ({selectedDay} {monthNames[currentMonthIndex]} {currentYearVal})</h2>
+              </div>
+              <button className="close-btn" onClick={() => setIsAddPlanModalOpen(false)} style={{ border: 'none', background: 'transparent', fontSize: '20px', cursor: 'pointer' }}>&times;</button>
             </div>
 
             <form onSubmit={handleAddPersonalPlan} className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>

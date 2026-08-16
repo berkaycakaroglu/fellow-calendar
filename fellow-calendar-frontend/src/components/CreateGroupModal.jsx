@@ -2,27 +2,39 @@ import React, { useState } from 'react';
 
 export default function CreateGroupModal({ user, onClose, onGroupCreated, onOpenInvite, onOpenSettings }) {
   const [groupName, setGroupName] = useState('');
-  const [createdGroup, setCreatedGroup] = useState(null); // Oluşturulan grup bilgisini tutar
+  const [createdGroup, setCreatedGroup] = useState(null);
+
+  const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:8000';
+  const token = user?.access_token || localStorage.getItem('token') || '';
 
   const handleCreateGroup = async (e) => {
     e.preventDefault();
     if (!groupName.trim()) return;
 
     try {
-      const response = await fetch('/api/groups/create', {
+      const response = await fetch(`${API_BASE}/api/groups/create`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
         body: JSON.stringify({
-          grup_adi: groupName,
-          olusturan_id: user?.id || 1
+          grup_adi: groupName.trim(),
         }),
       });
 
       const data = await response.json();
 
       if (response.ok) {
-        setCreatedGroup(data); // Grubu hafızada tut, seçim ekranına geç
-        if (onGroupCreated) onGroupCreated();
+        const groupObj = {
+          id: data.grup_id,
+          grup_adi: groupName.trim(),
+          davet_kodu: data.davet_kodu,
+          uye_sayisi: 1,
+          olusturan_id: user?.id
+        };
+        setCreatedGroup(groupObj);
+        if (onGroupCreated) onGroupCreated(groupObj);
       } else {
         alert(data.detail || 'Grup oluşturulamadı.');
       }
@@ -41,7 +53,6 @@ export default function CreateGroupModal({ user, onClose, onGroupCreated, onOpen
         </div>
 
         {!createdGroup ? (
-          /* 1. ADIM: GRUP ADI GİRME FORMU */
           <form onSubmit={handleCreateGroup} className="modal-body" style={{ textAlign: 'left' }}>
             <div className="form-group">
               <label>Grup Adı</label>
@@ -58,7 +69,6 @@ export default function CreateGroupModal({ user, onClose, onGroupCreated, onOpen
             </button>
           </form>
         ) : (
-          /* 2. ADIM: BAŞARI SONRASI SEÇENEKLER EKRANI */
           <div className="modal-body" style={{ paddingTop: '10px' }}>
             <p style={{ color: '#2b6cb0', fontWeight: 'bold', marginBottom: '20px' }}>
               "{groupName}" grubu başarıyla kuruldu. Şimdi ne yapmak istersin?
@@ -70,7 +80,7 @@ export default function CreateGroupModal({ user, onClose, onGroupCreated, onOpen
                 style={{ backgroundColor: '#3182ce', padding: '12px' }}
                 onClick={() => {
                   onClose();
-                  if (onOpenInvite) onOpenInvite();
+                  if (onOpenInvite) onOpenInvite(createdGroup);
                 }}
               >
                 🤝 Arkadaşlarını Davet Et
@@ -81,7 +91,7 @@ export default function CreateGroupModal({ user, onClose, onGroupCreated, onOpen
                 style={{ backgroundColor: '#4a5568', padding: '12px' }}
                 onClick={() => {
                   onClose();
-                  if (onOpenSettings) onOpenSettings();
+                  if (onOpenSettings) onOpenSettings(createdGroup);
                 }}
               >
                 ⚙️ Grup Ayarlarını Düzenle

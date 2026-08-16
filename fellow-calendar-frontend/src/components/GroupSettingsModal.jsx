@@ -5,6 +5,9 @@ export default function GroupSettingsModal({ user, group, onClose, onUpdated, on
   const [description, setDescription] = useState(group?.aciklama || '');
   const [loading, setLoading] = useState(false);
 
+  const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:8000';
+  const token = user?.access_token || localStorage.getItem('token') || '';
+
   const isOwner = group?.olusturan_id === user?.id;
 
   const handleUpdate = async (e) => {
@@ -13,13 +16,15 @@ export default function GroupSettingsModal({ user, group, onClose, onUpdated, on
     setLoading(true);
 
     try {
-      const res = await fetch(`/api/groups/${group.id}`, {
+      const res = await fetch(`${API_BASE}/api/groups/${group.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
         body: JSON.stringify({
           grup_adi: groupName,
-          aciklama: description,
-          kullanici_id: user.id
+          aciklama: description
         })
       });
       const data = await res.json();
@@ -42,8 +47,11 @@ export default function GroupSettingsModal({ user, group, onClose, onUpdated, on
     if (!window.confirm(`"${group.grup_adi}" grubunu tamamen silmek istediğine emin misin?`)) return;
 
     try {
-      const res = await fetch(`/api/groups/${group.id}?kullanici_id=${user.id}`, {
-        method: 'DELETE'
+      const res = await fetch(`${API_BASE}/api/groups/${group.id}`, {
+        method: 'DELETE',
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        }
       });
       const data = await res.json();
       if (res.ok) {

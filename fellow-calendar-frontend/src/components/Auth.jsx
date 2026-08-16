@@ -6,6 +6,7 @@ export default function Auth({ onLoginSuccess }) {
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
 
   // Form State'leri
   const [isim, setIsim] = useState('');
@@ -13,13 +14,31 @@ export default function Auth({ onLoginSuccess }) {
   const [email, setEmail] = useState('');
   const [sifre, setSifre] = useState('');
 
+  // Ortam değişkeni (Vite)
+  const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:8000';
+
+  const validatePassword = (pwd) => {
+    if (pwd.length < 8) return 'Şifre en az 8 karakter olmalıdır.';
+    if (!/[A-Z]/.test(pwd)) return 'Şifre en az 1 büyük harf içermelidir.';
+    if (!/[!@#$%^&*?_~+\-]/.test(pwd)) return 'Şifre en az 1 özel karakter (!@#$%^&*?_~+-) içermelidir.';
+    return null;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMsg('');
+    setSuccessMsg('');
+
+    if (!isLogin) {
+      const pwdError = validatePassword(sifre);
+      if (pwdError) {
+        setErrorMsg(pwdError);
+        return;
+      }
+    }
+
     setLoading(true);
 
-    // Backend adresi doğrudan tanımlandı (Proxy sorununu ortadan kaldırır)
-    const API_BASE = 'http://127.0.0.1:8000';
     const endpoint = isLogin
       ? `${API_BASE}/api/auth/login`
       : `${API_BASE}/api/users/register`;
@@ -48,18 +67,23 @@ export default function Auth({ onLoginSuccess }) {
 
       if (res.ok) {
         if (isLogin) {
+          // JWT access_token ve user bilgisini üst bileşene aktar
           onLoginSuccess(data);
         } else {
-          alert('Kayıt başarılı! Şimdi belirlediğiniz şifreyle giriş yapabilirsiniz.');
+          setSuccessMsg('Kayıt başarılı! Şimdi belirlediğiniz şifreyle giriş yapabilirsiniz.');
           setIsLogin(true);
           setSifre('');
         }
       } else {
-        setErrorMsg(data.detail || 'İşlem gerçekleştirilemedi.');
+        if (Array.isArray(data.detail)) {
+          setErrorMsg(data.detail[0]?.msg || 'Geçersiz form verisi.');
+        } else {
+          setErrorMsg(data.detail || 'İşlem gerçekleştirilemedi.');
+        }
       }
     } catch (err) {
       console.error('Fetch Hatası:', err);
-      setErrorMsg('Sunucuya bağlanılamadı. Backend servisinizin (port 8000) açık olduğundan emin olun.');
+      setErrorMsg('Sunucuya bağlanılamadı. Backend servisinizin açık olduğundan emin olun.');
     } finally {
       setLoading(false);
     }
@@ -137,7 +161,7 @@ export default function Auth({ onLoginSuccess }) {
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', fontWeight: '600' }}>
                 <CheckCircle2 size={18} color="#F8F7F4" />
-                <span>Geçmiş etkinlikleri güvenle kilitle</span>
+                <span>Uçtan uca şifreli oturum güvenliği</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', fontWeight: '600' }}>
                 <CheckCircle2 size={18} color="#F8F7F4" />
@@ -176,6 +200,23 @@ export default function Auth({ onLoginSuccess }) {
               }}
             >
               ⚠️ {errorMsg}
+            </div>
+          )}
+
+          {successMsg && (
+            <div
+              style={{
+                background: '#D4F7DC',
+                border: '1px solid #00875A',
+                color: '#00875A',
+                padding: '10px 14px',
+                borderRadius: '10px',
+                fontSize: '12px',
+                fontWeight: '700',
+                marginBottom: '18px',
+              }}
+            >
+              ✅ {successMsg}
             </div>
           )}
 
@@ -343,6 +384,7 @@ export default function Auth({ onLoginSuccess }) {
               onClick={() => {
                 setIsLogin(!isLogin);
                 setErrorMsg('');
+                setSuccessMsg('');
               }}
               style={{
                 background: 'transparent',

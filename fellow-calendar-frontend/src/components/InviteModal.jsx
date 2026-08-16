@@ -1,20 +1,23 @@
 import React, { useState, useEffect } from 'react';
 
 export default function InviteModal({ user, group, defaultInviteCode, onClose }) {
-  const [activeTab, setActiveTab] = useState('friends'); // 'friends' veya 'link'
+  const [activeTab, setActiveTab] = useState('friends');
   const [friends, setFriends] = useState([]);
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const inviteLink = defaultInviteCode
-    ? `http://localhost:5173/join/${defaultInviteCode}`
-    : 'Kod bulunamadı.';
+  const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:8000';
+  const token = user?.access_token || localStorage.getItem('token') || '';
+
+  const inviteCode = defaultInviteCode || group?.davet_kodu || '';
+  const inviteLink = inviteCode ? `http://localhost:5173/join/${inviteCode}` : 'Kod bulunamadı.';
 
   useEffect(() => {
     const fetchFriends = async () => {
-      if (!user?.id) return;
       try {
-        const res = await fetch(`/api/users/${user.id}/friends`);
+        const res = await fetch(`${API_BASE}/api/users/friends`, {
+          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
+        });
         if (res.ok) {
           const data = await res.json();
           setFriends(data.arkadaslar || []);
@@ -27,7 +30,7 @@ export default function InviteModal({ user, group, defaultInviteCode, onClose })
   }, [user]);
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(defaultInviteCode || inviteLink);
+    navigator.clipboard.writeText(inviteCode || inviteLink);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -36,12 +39,14 @@ export default function InviteModal({ user, group, defaultInviteCode, onClose })
     if (!group?.id) return;
     setLoading(true);
     try {
-      const res = await fetch('/api/groups/invite-friend', {
+      const res = await fetch(`${API_BASE}/api/groups/invite-friend`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
         body: JSON.stringify({
           grup_id: group.id,
-          gonderen_id: user.id,
           davet_edilen_id: friendId
         })
       });
@@ -150,7 +155,7 @@ export default function InviteModal({ user, group, defaultInviteCode, onClose })
                 <input
                   type="text"
                   readOnly
-                  value={defaultInviteCode || ''}
+                  value={inviteCode}
                   style={{ flex: 1, padding: '9px', fontWeight: 'bold', letterSpacing: '1px', background: '#f7fafc' }}
                 />
                 <button

@@ -9,13 +9,17 @@ export default function Friends({ user, onGroupAction }) {
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(true);
 
+  const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:8000';
+  const token = user?.access_token || localStorage.getItem('token') || '';
+
   const totalRequests = (friendRequests?.length || 0) + (groupRequests?.length || 0);
 
   const fetchFriendsData = async () => {
-    if (!user?.id) return;
     try {
       setLoading(true);
-      const res = await fetch(`/api/users/${user.id}/friends`);
+      const res = await fetch(`${API_BASE}/api/users/friends`, {
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
+      });
       if (res.ok) {
         const data = await res.json();
         setFriends(data.arkadaslar || []);
@@ -38,11 +42,13 @@ export default function Friends({ user, onGroupAction }) {
     if (!friendUsername.trim()) return;
 
     try {
-      const res = await fetch('/api/friends/request', {
+      const res = await fetch(`${API_BASE}/api/friends/request`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
         body: JSON.stringify({
-          gonderen_id: user?.id,
           hedef_kullanici_adi: friendUsername.trim(),
         }),
       });
@@ -62,9 +68,12 @@ export default function Friends({ user, onGroupAction }) {
 
   const handleRespondFriend = async (istekId, kabulMu) => {
     try {
-      const res = await fetch('/api/friends/respond', {
+      const res = await fetch(`${API_BASE}/api/friends/respond`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
         body: JSON.stringify({ istek_id: istekId, kabul_mu: kabulMu }),
       });
       if (res.ok) fetchFriendsData();
@@ -75,9 +84,12 @@ export default function Friends({ user, onGroupAction }) {
 
   const handleRespondGroup = async (davetId, kabulMu) => {
     try {
-      const res = await fetch('/api/groups/respond-invite', {
+      const res = await fetch(`${API_BASE}/api/groups/respond-invite`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
         body: JSON.stringify({ davet_id: davetId, kabul_mu: kabulMu }),
       });
       if (res.ok) {
@@ -91,7 +103,6 @@ export default function Friends({ user, onGroupAction }) {
 
   return (
     <div className="card" style={{ height: 'fit-content', padding: '16px' }}>
-      {/* Üst Sekmeler */}
       <div style={{ display: 'flex', gap: '6px', marginBottom: '12px' }}>
         <button
           className="btn-primary"
@@ -145,7 +156,6 @@ export default function Friends({ user, onGroupAction }) {
 
       <hr style={{ border: '0', borderTop: '1px solid #edf2f7', margin: '10px 0' }} />
 
-      {/* SEKME 1: ARKADAŞLAR */}
       {activeTab === 'friends' && (
         <div>
           {loading ? (
@@ -163,7 +173,8 @@ export default function Friends({ user, onGroupAction }) {
               {friends.map((friend) => (
                 <div key={friend.id} style={{ padding: '8px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: '#3182ce', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 'bold' }}>
-                    {friend.isim.charAt(0).toUpperCase()}
+                    {/* Madde 7: Güvenli Türkçe Harf Büyütme */}
+                    {friend?.isim ? friend.isim.charAt(0).toLocaleUpperCase('tr-TR') : '?'}
                   </div>
                   <div>
                     <strong style={{ fontSize: '12px', display: 'block', color: '#2d3748' }}>{friend.isim}</strong>
@@ -176,7 +187,6 @@ export default function Friends({ user, onGroupAction }) {
         </div>
       )}
 
-      {/* SEKME 2: GELEN İSTEKLER (ARKADAŞLIK + GRUP DAVETLERİ) */}
       {activeTab === 'requests' && (
         <div style={{ maxHeight: '240px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {totalRequests === 0 ? (
@@ -186,7 +196,6 @@ export default function Friends({ user, onGroupAction }) {
             </div>
           ) : (
             <>
-              {/* Arkadaşlık İstekleri */}
               {friendRequests.map((req) => (
                 <div key={`fr-${req.istek_id}`} style={{ background: '#ebf8ff', padding: '8px', borderRadius: '6px', border: '1px solid #bee3f8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
@@ -201,7 +210,6 @@ export default function Friends({ user, onGroupAction }) {
                 </div>
               ))}
 
-              {/* Grup Davetleri */}
               {groupRequests.map((gd) => (
                 <div key={`gr-${gd.davet_id}`} style={{ background: '#fefcbf', padding: '8px', borderRadius: '6px', border: '1px solid #faf089', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>

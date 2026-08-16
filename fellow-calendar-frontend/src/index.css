@@ -342,3 +342,19 @@ button {
   from { transform: scale(0.97); opacity: 0; }
   to { transform: scale(1); opacity: 1; }
 }
+
+/* Sekme içerikleri için yumuşak açılış */
+@keyframes tabFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.tab-content-animated {
+  animation: tabFadeIn 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}

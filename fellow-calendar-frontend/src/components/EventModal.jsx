@@ -7,13 +7,15 @@ export default function EventModal({ user, selectedDate, editingEvent, onClose, 
   const [title, setTitle] = useState(editingEvent ? editingEvent.baslik : '');
   const [errorMsg, setErrorMsg] = useState('');
 
+  const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:8000';
+  const token = user?.access_token || localStorage.getItem('token') || '';
+
   const initialDateStr = editingEvent
     ? editingEvent.baslangic.substring(0, 10)
     : selectedDate instanceof Date
       ? selectedDate.toISOString().split('T')[0]
       : todayStr;
 
-  // Seçilen tarih bugünden eskiyse otomatik olarak bugüne ayarla
   const [eventDate, setEventDate] = useState(initialDateStr < todayStr ? todayStr : initialDateStr);
 
   const [isAllDay, setIsAllDay] = useState(
@@ -60,7 +62,6 @@ export default function EventModal({ user, selectedDate, editingEvent, onClose, 
     }
 
     const payload = {
-      kullanici_id: user.id,
       baslik: title.trim(),
       baslangic: start,
       bitis: end,
@@ -68,20 +69,18 @@ export default function EventModal({ user, selectedDate, editingEvent, onClose, 
     };
 
     try {
-      let res;
-      if (editingEvent) {
-        res = await fetch(`/api/events/${editingEvent.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-      } else {
-        res = await fetch('/api/events', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-      }
+      const endpoint = editingEvent
+        ? `${API_BASE}/api/events/${editingEvent.id}`
+        : `${API_BASE}/api/events`;
+
+      const res = await fetch(endpoint, {
+        method: editingEvent ? 'PUT' : 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify(payload),
+      });
 
       if (res.ok) {
         onSaved();
@@ -129,7 +128,7 @@ export default function EventModal({ user, selectedDate, editingEvent, onClose, 
               <CalendarIcon size={16} color="#0057FF" style={{ position: 'absolute', left: '12px', pointerEvents: 'none' }} />
               <input
                 type="date"
-                min={todayStr} // BUGÜNDEN ÖNCEKİ TARİHLER SEÇİLEMEZ
+                min={todayStr}
                 value={eventDate}
                 onChange={(e) => setEventDate(e.target.value)}
                 required

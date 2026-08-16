@@ -4,11 +4,15 @@ export default function Groups({ user, onOpenInvite, onOpenCreateGroup, onOpenJo
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:8000';
+  const token = user?.access_token || localStorage.getItem('token') || '';
+
   const fetchGroups = async () => {
-    if (!user?.id) return;
     try {
       setLoading(true);
-      const res = await fetch(`/api/users/${user.id}/groups`);
+      const res = await fetch(`${API_BASE}/api/users/groups`, {
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
+      });
       if (res.ok) {
         setGroups(await res.json());
       }

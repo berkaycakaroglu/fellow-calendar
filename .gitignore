@@ -1,6 +1,16 @@
+# Python & Sanal Ortam
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+venv/
+env/
+
+# Ortam Değişkenleri
 .env
+.env.*
+
+# IDE & Sistem
 .idea/
+.vscode/
+.DS_Store
