@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Navbar from './components/Navbar';
 import Calendar from './components/Calendar';
 import Auth from './components/Auth';
@@ -11,48 +11,19 @@ export default function App() {
   });
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:8000';
 
-  // JWT Token ile oturumun geçerliliğini backend'de doğrula
-  useEffect(() => {
-    const verifyUserSession = async () => {
-      if (!user?.access_token) return;
-
-      try {
-        const res = await fetch(`${API_BASE}/api/auth/verify-session`, {
-          headers: {
-            'Authorization': `Bearer ${user.access_token}`
-          }
-        });
-
-        if (!res.ok) {
-          localStorage.removeItem('active_user');
-          localStorage.removeItem('token');
-          setUser(null);
-        }
-      } catch {
-        localStorage.removeItem('active_user');
-        localStorage.removeItem('token');
-        setUser(null);
-      }
-    };
-
-    verifyUserSession();
-  }, []);
-
-  // Giriş başarılı olunca JWT token ve kullanıcı bilgilerini kaydet
+  // Giriş başarılı olduğunda
   const handleLoginSuccess = (loginResponse) => {
     const sessionData = {
       ...loginResponse.user,
       access_token: loginResponse.access_token
     };
-
     setUser(sessionData);
     localStorage.setItem('active_user', JSON.stringify(sessionData));
     localStorage.setItem('token', loginResponse.access_token);
   };
 
-  // Çıkış yapıldığında oturumu temizle
+  // Çıkış yapıldığında
   const handleLogout = () => {
     setUser(null);
     localStorage.removeItem('active_user');

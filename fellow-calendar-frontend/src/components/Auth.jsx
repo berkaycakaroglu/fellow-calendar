@@ -14,79 +14,32 @@ export default function Auth({ onLoginSuccess }) {
   const [email, setEmail] = useState('');
   const [sifre, setSifre] = useState('');
 
-  // Ortam değişkeni (Vite)
-  const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:8000';
-
-  const validatePassword = (pwd) => {
-    if (pwd.length < 8) return 'Şifre en az 8 karakter olmalıdır.';
-    if (!/[A-Z]/.test(pwd)) return 'Şifre en az 1 büyük harf içermelidir.';
-    if (!/[!@#$%^&*?_~+\-]/.test(pwd)) return 'Şifre en az 1 özel karakter (!@#$%^&*?_~+-) içermelidir.';
-    return null;
-  };
-
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
     setErrorMsg('');
     setSuccessMsg('');
-
-    if (!isLogin) {
-      const pwdError = validatePassword(sifre);
-      if (pwdError) {
-        setErrorMsg(pwdError);
-        return;
-      }
-    }
-
     setLoading(true);
 
-    const endpoint = isLogin
-      ? `${API_BASE}/api/auth/login`
-      : `${API_BASE}/api/users/register`;
-
-    const payload = isLogin
-      ? {
-          eposta: email.trim(),
-          sifre: sifre,
-        }
-      : {
-          isim: isim.trim(),
-          kullanici_adi: kullaniciAdi.trim(),
-          eposta: email.trim(),
-          sifre: sifre,
-          sifre_tekrar: sifre,
-        };
-
-    try {
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json();
-
-      if (res.ok) {
-        if (isLogin) {
-          // JWT access_token ve user bilgisini üst bileşene aktar
-          onLoginSuccess(data);
-        } else {
-          setSuccessMsg('Kayıt başarılı! Şimdi belirlediğiniz şifreyle giriş yapabilirsiniz.');
-          setIsLogin(true);
-          setSifre('');
-        }
+    setTimeout(() => {
+      if (isLogin) {
+        // Mock Başarılı Giriş
+        onLoginSuccess({
+          access_token: 'mock-jwt-token-demo-2026',
+          user: {
+            id: 1,
+            isim: 'Berkay Çakaroğlu',
+            kullanici_adi: email.split('@')[0] || 'berkay',
+            eposta: email || 'berkay@fellowcalendar.com'
+          }
+        });
       } else {
-        if (Array.isArray(data.detail)) {
-          setErrorMsg(data.detail[0]?.msg || 'Geçersiz form verisi.');
-        } else {
-          setErrorMsg(data.detail || 'İşlem gerçekleştirilemedi.');
-        }
+        // Mock Başarılı Kayıt
+        setSuccessMsg('Kayıt başarılı! Şimdi belirlediğiniz şifreyle giriş yapabilirsiniz.');
+        setIsLogin(true);
+        setSifre('');
       }
-    } catch (err) {
-      console.error('Fetch Hatası:', err);
-      setErrorMsg('Sunucuya bağlanılamadı. Backend servisinizin açık olduğundan emin olun.');
-    } finally {
       setLoading(false);
-    }
+    }, 400);
   };
 
   return (
@@ -224,24 +177,11 @@ export default function Auth({ onLoginSuccess }) {
             {!isLogin && (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
-                  <label
-                    style={{
-                      fontSize: '11px',
-                      fontWeight: '700',
-                      color: '#5E6678',
-                      textTransform: 'uppercase',
-                      marginBottom: '6px',
-                      display: 'block',
-                    }}
-                  >
+                  <label style={{ fontSize: '11px', fontWeight: '700', color: '#5E6678', textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>
                     Ad Soyad
                   </label>
                   <div style={{ position: 'relative' }}>
-                    <User
-                      size={16}
-                      color="#949DAE"
-                      style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }}
-                    />
+                    <User size={16} color="#949DAE" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
                     <input
                       type="text"
                       placeholder="Ahmet Yılmaz"
@@ -254,31 +194,11 @@ export default function Auth({ onLoginSuccess }) {
                 </div>
 
                 <div>
-                  <label
-                    style={{
-                      fontSize: '11px',
-                      fontWeight: '700',
-                      color: '#5E6678',
-                      textTransform: 'uppercase',
-                      marginBottom: '6px',
-                      display: 'block',
-                    }}
-                  >
+                  <label style={{ fontSize: '11px', fontWeight: '700', color: '#5E6678', textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>
                     Kullanıcı Adı
                   </label>
                   <div style={{ position: 'relative' }}>
-                    <span
-                      style={{
-                        position: 'absolute',
-                        left: '12px',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        color: '#949DAE',
-                        fontWeight: 'bold',
-                      }}
-                    >
-                      @
-                    </span>
+                    <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#949DAE', fontWeight: 'bold' }}>@</span>
                     <input
                       type="text"
                       placeholder="ahmety"
@@ -293,24 +213,11 @@ export default function Auth({ onLoginSuccess }) {
             )}
 
             <div>
-              <label
-                style={{
-                  fontSize: '11px',
-                  fontWeight: '700',
-                  color: '#5E6678',
-                  textTransform: 'uppercase',
-                  marginBottom: '6px',
-                  display: 'block',
-                }}
-              >
+              <label style={{ fontSize: '11px', fontWeight: '700', color: '#5E6678', textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>
                 E-Posta Adresi
               </label>
               <div style={{ position: 'relative' }}>
-                <Mail
-                  size={16}
-                  color="#949DAE"
-                  style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }}
-                />
+                <Mail size={16} color="#949DAE" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
                 <input
                   type="email"
                   placeholder="ornek@email.com"
@@ -323,29 +230,11 @@ export default function Auth({ onLoginSuccess }) {
             </div>
 
             <div>
-              <label
-                style={{
-                  fontSize: '11px',
-                  fontWeight: '700',
-                  color: '#5E6678',
-                  textTransform: 'uppercase',
-                  marginBottom: '6px',
-                  display: 'block',
-                }}
-              >
-                Şifre{' '}
-                {!isLogin && (
-                  <span style={{ textTransform: 'none', fontWeight: '400', fontSize: '10px' }}>
-                    (Min 8 karakter, 1 büyük harf ve 1 özel karakter)
-                  </span>
-                )}
+              <label style={{ fontSize: '11px', fontWeight: '700', color: '#5E6678', textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>
+                Şifre
               </label>
               <div style={{ position: 'relative' }}>
-                <Lock
-                  size={16}
-                  color="#949DAE"
-                  style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }}
-                />
+                <Lock size={16} color="#949DAE" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
                 <input
                   type="password"
                   placeholder="••••••••"
