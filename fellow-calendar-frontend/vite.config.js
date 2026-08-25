@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   // GitHub Pages repo adınızı buraya yazın (Örn: repo adınız fellow-calendar-frontend ise)
-  base: '/fellow-calendar-frontend/',
+  base: '/fellow-calendar/',
   plugins: [react()],
   server: {
     port: 5173,
