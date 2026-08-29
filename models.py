@@ -3,6 +3,7 @@ from sqlalchemy import (
     DateTime, Boolean, Text, UniqueConstraint
 )
 from sqlalchemy.orm import relationship
+from datetime import datetime
 from app_database import Base
 
 
@@ -48,6 +49,7 @@ class Grup(Base):
     uyeler = relationship("GrupUye", back_populates="grup", cascade="all, delete-orphan")
     etkinlikler = relationship("TakvimEtkinlik", back_populates="grup")
     davet_linkleri = relationship("DavetLink", back_populates="grup", cascade="all, delete-orphan")
+    teklifler = relationship("GrupTeklif", back_populates="grup", cascade="all, delete-orphan")
 
 
 class GrupUye(Base):
@@ -103,3 +105,36 @@ class TakvimEtkinlik(Base):
 
     kullanici = relationship("Kullanici", back_populates="etkinlikler")
     grup = relationship("Grup", back_populates="etkinlikler")
+
+
+class GrupTeklif(Base):
+    __tablename__ = "grup_teklifleri"
+
+    id = Column(Integer, primary_key=True, index=True)
+    grup_id = Column(Integer, ForeignKey("gruplar.id", ondelete="CASCADE"), nullable=False)
+    teklif_eden_id = Column(Integer, ForeignKey("kullanicilar.id", ondelete="CASCADE"), nullable=False)
+    baslik = Column(String(100), nullable=False)
+    tarih = Column(String(20), nullable=False)
+    baslangic_saat = Column(String(10), nullable=False)
+    bitis_saat = Column(String(10), nullable=False)
+    olusturulma_tarihi = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    grup = relationship("Grup", back_populates="teklifler")
+    teklif_eden = relationship("Kullanici")
+    yanitlar = relationship("GrupTeklifYanit", back_populates="teklif", cascade="all, delete-orphan")
+
+
+class GrupTeklifYanit(Base):
+    __tablename__ = "grup_teklif_yanitlari"
+
+    id = Column(Integer, primary_key=True, index=True)
+    teklif_id = Column(Integer, ForeignKey("grup_teklifleri.id", ondelete="CASCADE"), nullable=False)
+    kullanici_id = Column(Integer, ForeignKey("kullanicilar.id", ondelete="CASCADE"), nullable=False)
+    kabul_mu = Column(Boolean, nullable=False)
+
+    teklif = relationship("GrupTeklif", back_populates="yanitlar")
+    kullanici = relationship("Kullanici")
+
+    __table_args__ = (
+        UniqueConstraint("teklif_id", "kullanici_id", name="uq_teklif_kullanici_yanit"),
+    )

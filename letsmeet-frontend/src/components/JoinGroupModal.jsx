@@ -62,7 +62,7 @@ export default function JoinGroupModal({ user, onClose, onGroupJoined }) {
             <label>Davet Kodu</label>
             <input
               type="text"
-              placeholder="Örn: FLW-1234"
+              placeholder="Örn: LM-1234"
               value={code}
               onChange={(e) => setCode(e.target.value)}
               required

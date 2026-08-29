@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MapPin, Check, Search, Loader2, User, Lock, Mail, AlertCircle } from 'lucide-react';
+import { MapPin, Check, Search, Loader2, User, Lock, Mail, AlertCircle, Trash2 } from 'lucide-react';
 
 export default function SettingsModal({ user, onClose, onUserUpdated }) {
   const [activeTab, setActiveTab] = useState('profile'); // 'profile' | 'location'
@@ -9,6 +9,7 @@ export default function SettingsModal({ user, onClose, onUserUpdated }) {
   const [email, setEmail] = useState(user?.eposta || user?.email || '');
   const [sifre, setSifre] = useState('');
   const [profileLoading, setProfileLoading] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const [profileMsg, setProfileMsg] = useState({ type: '', text: '' });
 
   // Konum Modu
@@ -78,6 +79,40 @@ export default function SettingsModal({ user, onClose, onUserUpdated }) {
       setProfileMsg({ type: 'error', text: 'Sunucuya bağlanılamadı.' });
     } finally {
       setProfileLoading(false);
+    }
+  };
+
+  // Hesap Silme İşlemi (Cascade DB Silme)
+  const handleDeleteAccount = async () => {
+    const onay = window.confirm(
+      'DİKKAT: Hesabınızı silmek üzeresiniz. Tüm takvim etkinlikleriniz, grup üyelikleriniz ve arkadaşlık bağlantılarınız kalıcı olarak silinecektir. Devam etmek istiyor musunuz?'
+    );
+
+    if (!onay) return;
+
+    setDeleteLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/users/me`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        }
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        alert(data.message || 'Hesabınız başarıyla silindi.');
+        localStorage.removeItem('active_user');
+        localStorage.removeItem('token');
+        window.location.reload();
+      } else {
+        alert(data.detail || 'Hesap silinirken bir hata oluştu.');
+      }
+    } catch {
+      alert('Sunucuya bağlanılamadı.');
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -210,84 +245,119 @@ export default function SettingsModal({ user, onClose, onUserUpdated }) {
         </div>
 
         <div className="modal-body">
-          {/* SEKME 1: PROFİL VE ŞİFRE GÜNCELLEME */}
+          {/* SEKME 1: PROFİL, ŞİFRE VE HESAP SİLME */}
           {activeTab === 'profile' && (
-            <form onSubmit={handleUpdateProfile} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {profileMsg.text && (
-                <div style={{
-                  background: profileMsg.type === 'error' ? '#FEECEB' : '#D4F7DC',
-                  border: `1px solid ${profileMsg.type === 'error' ? '#E53935' : '#00875A'}`,
-                  color: profileMsg.type === 'error' ? '#E53935' : '#00875A',
-                  padding: '8px 12px',
-                  borderRadius: '8px',
-                  fontSize: '12px',
-                  fontWeight: '700',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px'
-                }}>
-                  {profileMsg.type === 'error' ? <AlertCircle size={14} /> : <Check size={14} />}
-                  <span>{profileMsg.text}</span>
-                </div>
-              )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <form onSubmit={handleUpdateProfile} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {profileMsg.text && (
+                  <div style={{
+                    background: profileMsg.type === 'error' ? '#FEECEB' : '#D4F7DC',
+                    border: `1px solid ${profileMsg.type === 'error' ? '#E53935' : '#00875A'}`,
+                    color: profileMsg.type === 'error' ? '#E53935' : '#00875A',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    fontSize: '12px',
+                    fontWeight: '700',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}>
+                    {profileMsg.type === 'error' ? <AlertCircle size={14} /> : <Check size={14} />}
+                    <span>{profileMsg.text}</span>
+                  </div>
+                )}
 
-              <div>
-                <label style={{ fontSize: '11px', fontWeight: '700', color: '#5E6678', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
-                  Ad Soyad
-                </label>
-                <div style={{ position: 'relative' }}>
-                  <User size={15} color="#949DAE" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
-                  <input
-                    type="text"
-                    value={isim}
-                    onChange={(e) => setIsim(e.target.value)}
-                    required
-                    style={{ width: '100%', padding: '8px 10px 8px 32px', borderRadius: '8px', border: '1px solid #E6E4DD', fontSize: '13px' }}
-                  />
+                <div>
+                  <label style={{ fontSize: '11px', fontWeight: '700', color: '#5E6678', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
+                    Ad Soyad
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <User size={15} color="#949DAE" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
+                    <input
+                      type="text"
+                      value={isim}
+                      onChange={(e) => setIsim(e.target.value)}
+                      required
+                      style={{ width: '100%', padding: '8px 10px 8px 32px', borderRadius: '8px', border: '1px solid #E6E4DD', fontSize: '13px' }}
+                    />
+                  </div>
                 </div>
+
+                <div>
+                  <label style={{ fontSize: '11px', fontWeight: '700', color: '#5E6678', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
+                    E-Posta Adresi
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <Mail size={15} color="#949DAE" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                      style={{ width: '100%', padding: '8px 10px 8px 32px', borderRadius: '8px', border: '1px solid #E6E4DD', fontSize: '13px' }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '11px', fontWeight: '700', color: '#5E6678', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
+                    Yeni Şifre (Değiştirmek İstemiyorsanız Boş Bırakın)
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <Lock size={15} color="#949DAE" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
+                    <input
+                      type="password"
+                      placeholder="••••••••"
+                      value={sifre}
+                      onChange={(e) => setSifre(e.target.value)}
+                      style={{ width: '100%', padding: '8px 10px 8px 32px', borderRadius: '8px', border: '1px solid #E6E4DD', fontSize: '13px' }}
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  className="btn-primary"
+                  disabled={profileLoading}
+                  style={{ marginTop: '4px', padding: '10px', fontSize: '13px' }}
+                >
+                  {profileLoading ? 'Güncelleniyor...' : 'Bilgileri Kaydet'}
+                </button>
+              </form>
+
+              {/* Tehlikeli Bölge - Hesap Silme */}
+              <div style={{ marginTop: '8px', paddingTop: '16px', borderTop: '1px solid #F0EFEA' }}>
+                <span style={{ fontSize: '11px', fontWeight: '800', color: '#E53935', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
+                  Tehlikeli Bölge
+                </span>
+                <p style={{ fontSize: '12px', color: '#5E6678', margin: '0 0 10px 0' }}>
+                  Hesabınızı sildiğinizde tüm takvim planlarınız ve bağlantılarınız kalıcı olarak silinir.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleDeleteAccount}
+                  disabled={deleteLoading}
+                  style={{
+                    width: '100%',
+                    padding: '9px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid #FCA5A5',
+                    background: '#FEECEB',
+                    color: '#E53935',
+                    fontSize: '12px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <Trash2 size={14} />
+                  {deleteLoading ? 'Hesap Siliniyor...' : 'Hesabımı Kalıcı Olarak Sil'}
+                </button>
               </div>
-
-              <div>
-                <label style={{ fontSize: '11px', fontWeight: '700', color: '#5E6678', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
-                  E-Posta Adresi
-                </label>
-                <div style={{ position: 'relative' }}>
-                  <Mail size={15} color="#949DAE" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                    style={{ width: '100%', padding: '8px 10px 8px 32px', borderRadius: '8px', border: '1px solid #E6E4DD', fontSize: '13px' }}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label style={{ fontSize: '11px', fontWeight: '700', color: '#5E6678', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
-                  Yeni Şifre (Değiştirmek İstemiyorsanız Boş Bırakın)
-                </label>
-                <div style={{ position: 'relative' }}>
-                  <Lock size={15} color="#949DAE" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
-                  <input
-                    type="password"
-                    placeholder="••••••••"
-                    value={sifre}
-                    onChange={(e) => setSifre(e.target.value)}
-                    style={{ width: '100%', padding: '8px 10px 8px 32px', borderRadius: '8px', border: '1px solid #E6E4DD', fontSize: '13px' }}
-                  />
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                className="btn-primary"
-                disabled={profileLoading}
-                style={{ marginTop: '8px', padding: '10px', fontSize: '13px' }}
-              >
-                {profileLoading ? 'Güncelleniyor...' : 'Bilgileri Kaydet'}
-              </button>
-            </form>
+            </div>
           )}
 
           {/* SEKME 2: KONUM VE HAVA DURUMU */}

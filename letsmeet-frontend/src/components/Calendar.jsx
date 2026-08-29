@@ -1122,7 +1122,7 @@ export default function Calendar({ user }) {
               }} style={{ display: 'flex', gap: '10px' }}>
                 <input
                   type="text"
-                  placeholder="Davet Kodu (Örn: FLW-A1B2C3)"
+                  placeholder="Davet Kodu (Örn: LM-A1B2C3)"
                   value={joinToken}
                   onChange={(e) => setJoinToken(e.target.value)}
                   style={{ flex: 1, height: '42px', padding: '0 14px', borderRadius: '10px', border: '1px solid #E6E4DD', fontSize: '13px' }}
