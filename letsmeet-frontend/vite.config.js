@@ -2,8 +2,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
 export default defineConfig({
-  // GitHub Pages repo adınızı buraya yazın (Örn: repo adınız fellow-calendar-frontend ise)
-  base: '/fellow-calendar/',
+  base: '/letsmeet/',
   plugins: [react()],
   server: {
     port: 5173,

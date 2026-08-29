@@ -1,9 +1,8 @@
-import hashlib
 import os
+import bcrypt
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 import jwt
-from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
@@ -13,44 +12,34 @@ import models
 
 load_dotenv()
 
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "varsayilan_gizli_anahtar_2026")
+SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+if not SECRET_KEY:
+    raise RuntimeError("KRİTİK HATA: JWT_SECRET_KEY ortam değişkeni tanımlanmamış!")
+
 ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 
 def sifreyi_hashle(sifre: str) -> str:
-    """Şifreyi güvenli bcrypt algoritmasıyla tuzlayarak (salt) hashler."""
-    return pwd_context.hash(sifre)
+    """Şifreyi doğrudan standart bcrypt kütüphanesi ile güvenle hashler."""
+    # Bcrypt maksimum 72 byte kabul eder
+    sifre_bytes = sifre.encode('utf-8')[:72]
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(sifre_bytes, salt).decode('utf-8')
 
 
 def sifre_dogrula(duz_sifre: str, hashlenmis_sifre: str) -> bool:
-    """
-    Girilen şifreyi doğrular.
-    Bcrypt, SHA-256 veya eski düz metin formatlarını destekler.
-    """
-    if not hashlenmis_sifre:
+    """Doğrudan bcrypt checkpw kullanarak şifreyi doğrular."""
+    if not hashlenmis_sifre or not duz_sifre:
         return False
-
-    # 1. Bcrypt Kontrolü ($2b$, $2a$, $2y$ ile başlar)
-    if hashlenmis_sifre.startswith(("$2a$", "$2b$", "$2y$")):
-        try:
-            return pwd_context.verify(duz_sifre, hashlenmis_sifre)
-        except Exception:
-            return False
-
-    # 2. Eski SHA-256 Hash Kontrolü
-    sha256_hash = hashlib.sha256(duz_sifre.encode("utf-8")).hexdigest()
-    if hashlenmis_sifre == sha256_hash:
-        return True
-
-    # 3. Eski Düz Metin Kontrolü
-    if hashlenmis_sifre == duz_sifre:
-        return True
-
-    return False
+    try:
+        duz_sifre_bytes = duz_sifre.encode('utf-8')[:72]
+        hash_bytes = hashlenmis_sifre.encode('utf-8')
+        return bcrypt.checkpw(duz_sifre_bytes, hash_bytes)
+    except Exception:
+        return False
 
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
@@ -70,9 +59,6 @@ def get_current_user(
     token: str = Depends(oauth2_scheme),
     db: Session = Depends(get_db)
 ) -> models.Kullanici:
-    """
-    Authorization: Bearer <token> başlığını okur ve doğrulanmış Kullanici modelini döner.
-    """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Oturum süreniz dolmuş veya geçersiz kimlik bilgisi. Lütfen tekrar giriş yapın.",

@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import and_, or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app_database import engine, get_db
 import models
@@ -22,7 +22,7 @@ load_dotenv()
 
 app = FastAPI(title="LetsMeet API")
 
-# --- CORS AYARLARI ---
+# --- CORS AYARLARI (.env + GitHub Pages tam uyumlu) ---
 ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://localhost:5174",
@@ -30,6 +30,7 @@ ALLOWED_ORIGINS = [
     "http://127.0.0.1:5173",
     "http://127.0.0.1:5174",
     "http://127.0.0.1:3000",
+    "https://berkaycakaroglu.github.io"
 ]
 
 env_origins = os.getenv("CORS_ORIGINS")
@@ -40,20 +41,14 @@ ALLOWED_ORIGINS = list(set(ALLOWED_ORIGINS))
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-    ],
+    allow_origins=ALLOWED_ORIGINS,  # Hesaplanan liste middleware'e aktarıldı
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Tabloları MySQL'de otomatik oluştur
+# Tabloları veritabanında oluştur
 models.Base.metadata.create_all(bind=engine)
-
-# Bellek İçi Teklif Havuzu
-teklifler_db = []
 
 
 # ==========================================
@@ -93,7 +88,6 @@ def giris_yap(veri: schemas.KullaniciGiris, db: Session = Depends(get_db)):
             detail="E-posta veya şifre hatalı!"
         )
 
-    # JWT Token Üretimi
     access_token = create_access_token(data={"sub": str(kullanici.id)})
 
     return {
@@ -159,7 +153,7 @@ def create_group(
     yeni_uye = models.GrupUye(grup_id=yeni_grup.id, kullanici_id=current_user.id)
     db.add(yeni_uye)
 
-    davet_token = f"FLW-{secrets.token_hex(3).upper()}"
+    davet_token = f"LM-{secrets.token_hex(3).upper()}"
     yeni_davet = models.DavetLink(grup_id=yeni_grup.id, token=davet_token, aktif_mi=True)
     db.add(yeni_davet)
     db.commit()
@@ -231,6 +225,43 @@ def update_group(
     db.commit()
     return {"message": "Grup bilgileri güncellendi!"}
 
+@app.delete("/api/users/me")
+def delete_user_account(
+    current_user: models.Kullanici = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    user_id = current_user.id
+
+    # 1. Arkadaşlık ve istek kayıtlarını temizle
+    db.query(models.Arkadaslik).filter(
+        or_(models.Arkadaslik.gonderen_id == user_id, models.Arkadaslik.alan_id == user_id)
+    ).delete(synchronize_session=False)
+
+    # 2. Grup davetlerini temizle
+    db.query(models.GrupDavet).filter(
+        or_(models.GrupDavet.gonderen_id == user_id, models.GrupDavet.davet_edilen_id == user_id)
+    ).delete(synchronize_session=False)
+
+    # 3. Grup üyeliklerini temizle
+    db.query(models.GrupUye).filter_by(kullanici_id=user_id).delete(synchronize_session=False)
+
+    # 4. Teklif yanıtlarını ve oluşturduğu teklifleri temizle
+    db.query(models.GrupTeklifYanit).filter_by(kullanici_id=user_id).delete(synchronize_session=False)
+    db.query(models.GrupTeklif).filter_by(teklif_eden_id=user_id).delete(synchronize_session=False)
+
+    # 5. Takvim etkinliklerini temizle
+    db.query(models.TakvimEtkinlik).filter_by(kullanici_id=user_id).delete(synchronize_session=False)
+
+    # 6. Kurucusu olduğu grupların kurucu ID'sini boşa çıkar (veya grubu sil)
+    kurulan_gruplar = db.query(models.Grup).filter_by(olusturan_kullanici_id=user_id).all()
+    for g in kurulan_gruplar:
+        g.olusturan_kullanici_id = None
+
+    # 7. Kullanıcıyı sil
+    db.delete(current_user)
+    db.commit()
+
+    return {"message": "Hesabınız ve tüm ilişkili veriler başarıyla silindi."}
 
 @app.delete("/api/groups/{grup_id}")
 def delete_group(
@@ -245,20 +276,13 @@ def delete_group(
     if grup.olusturan_kullanici_id != current_user.id:
         raise HTTPException(status_code=403, detail="Yalnızca grup kurucusu grubu silebilir.")
 
-    db.query(models.DavetLink).filter_by(grup_id=grup_id).delete()
-    db.query(models.GrupDavet).filter_by(grup_id=grup_id).delete()
-    db.query(models.GrupUye).filter_by(grup_id=grup_id).delete()
-
     etkinlikler = db.query(models.TakvimEtkinlik).filter_by(grup_id=grup_id).all()
     for e in etkinlikler:
         e.grup_id = None
 
-    global teklifler_db
-    teklifler_db = [t for t in teklifler_db if t.get("grup_id") != grup_id]
-
     db.delete(grup)
     db.commit()
-    return {"message": "Grup ve gruba ait tüm bağlantılar başarıyla silindi."}
+    return {"message": "Grup silindi; grup etkinlikleri kişisel etkinliğe dönüştürüldü."}
 
 
 @app.post("/api/groups/invite-friend")
@@ -401,20 +425,6 @@ def delete_event(
     return {"message": "Etkinlik silindi."}
 
 
-@app.delete("/api/system/cleanup-old-events")
-def cleanup_old_events(
-        current_user: models.Kullanici = Depends(get_current_user),
-        db: Session = Depends(get_db)
-):
-    sinir_tarih = datetime.now() - timedelta(days=90)
-    silinen_sayisi = db.query(models.TakvimEtkinlik).filter(
-        models.TakvimEtkinlik.bitis < sinir_tarih,
-        models.TakvimEtkinlik.kullanici_id == current_user.id
-    ).delete()
-    db.commit()
-    return {"message": f"{silinen_sayisi} adet 90 günden eski etkinlik temizlendi."}
-
-
 # ==========================================
 # 4. AKILLI ORTAK RANDEVU ANALİZİ (24 SAAT)
 # ==========================================
@@ -433,16 +443,19 @@ def get_group_common_slots(
     uyeler = db.query(models.GrupUye).filter_by(grup_id=grup_id).all()
     uye_idleri = [u.kullanici_id for u in uyeler]
 
+    # Toplu sorgu ile tüm üyelerin etkinliklerini tek seferde çekiyoruz (N+1 engellendi)
+    etkinlikler = db.query(models.TakvimEtkinlik).filter(
+        models.TakvimEtkinlik.kullanici_id.in_(uye_idleri)
+    ).all()
+
     saatler = [True] * 24
 
-    for uye_id in uye_idleri:
-        etkinlikler = db.query(models.TakvimEtkinlik).filter_by(kullanici_id=uye_id).all()
-        for e in etkinlikler:
-            if e.baslangic.strftime("%Y-%m-%d") == tarih:
-                basla_saat = e.baslangic.hour
-                bitis_saat = e.bitis.hour if e.bitis.hour > basla_saat else basla_saat + 1
-                for s in range(basla_saat, min(bitis_saat, 24)):
-                    saatler[s] = False
+    for e in etkinlikler:
+        if e.baslangic.strftime("%Y-%m-%d") == tarih:
+            basla_saat = e.baslangic.hour
+            bitis_saat = e.bitis.hour if e.bitis.hour > basla_saat else basla_saat + 1
+            for s in range(basla_saat, min(bitis_saat, 24)):
+                saatler[s] = False
 
     bos_araliklar = []
     baslangic = None
@@ -463,7 +476,7 @@ def get_group_common_slots(
 
 
 # ==========================================
-# 5. ARKADAŞLIK & İSTEK SİSTEMİ
+# 5. ARKADAŞLIK & İSTEK SİSTEMİ (Toplu Sorgu Optimize)
 # ==========================================
 
 @app.post("/api/friends/request")
@@ -507,56 +520,57 @@ def get_friends_and_requests(
         current_user: models.Kullanici = Depends(get_current_user),
         db: Session = Depends(get_db)
 ):
+    # 1. Onaylı Arkadaşlar (Toplu sorgu)
     onaylilar = db.query(models.Arkadaslik).filter(
         or_(models.Arkadaslik.gonderen_id == current_user.id, models.Arkadaslik.alan_id == current_user.id),
         models.Arkadaslik.durum == "kabul_edildi"
     ).all()
 
-    arkadas_listesi = []
-    for rel in onaylilar:
-        arkadas_id = rel.alan_id if rel.gonderen_id == current_user.id else rel.gonderen_id
-        arkadas = db.query(models.Kullanici).filter_by(id=arkadas_id).first()
-        if arkadas:
-            arkadas_listesi.append({
-                "id": arkadas.id,
-                "isim": arkadas.isim,
-                "kullanici_adi": arkadas.kullanici_adi
-            })
+    arkadas_idleri = [
+        rel.alan_id if rel.gonderen_id == current_user.id else rel.gonderen_id
+        for rel in onaylilar
+    ]
+    arkadaslar_db = db.query(models.Kullanici).filter(models.Kullanici.id.in_(arkadas_idleri)).all()
+    arkadas_listesi = [{"id": a.id, "isim": a.isim, "kullanici_adi": a.kullanici_adi} for a in arkadaslar_db]
 
+    # 2. Arkadaşlık İstekleri (Toplu sorgu)
     arkadas_istekleri = db.query(models.Arkadaslik).filter_by(
         alan_id=current_user.id,
         durum="beklemede"
     ).all()
+    gonderen_idleri = [req.gonderen_id for req in arkadas_istekleri]
+    gonderenler_db = {u.id: u for u in db.query(models.Kullanici).filter(models.Kullanici.id.in_(gonderen_idleri)).all()}
 
-    istek_listesi = []
-    for req in arkadas_istekleri:
-        gonderen = db.query(models.Kullanici).filter_by(id=req.gonderen_id).first()
-        if gonderen:
-            istek_listesi.append({
-                "istek_id": req.id,
-                "gonderen_id": gonderen.id,
-                "isim": gonderen.isim,
-                "kullanici_adi": gonderen.kullanici_adi
-            })
+    istek_listesi = [
+        {
+            "istek_id": req.id,
+            "gonderen_id": req.gonderen_id,
+            "isim": gonderenler_db[req.gonderen_id].isim if req.gonderen_id in gonderenler_db else "Kullanıcı",
+            "kullanici_adi": gonderenler_db[req.gonderen_id].kullanici_adi if req.gonderen_id in gonderenler_db else ""
+        }
+        for req in arkadas_istekleri
+    ]
 
+    # 3. Grup Davetleri (Toplu sorgu)
     grup_istekleri = db.query(models.GrupDavet).filter_by(
         davet_edilen_id=current_user.id,
         durum="beklemede"
     ).all()
+    grup_idleri = [gd.grup_id for gd in grup_istekleri]
+    davet_gonderen_idleri = [gd.gonderen_id for gd in grup_istekleri]
 
-    grup_davet_listesi = []
-    for gd in grup_istekleri:
-        grup = db.query(models.Grup).filter_by(id=gd.grup_id).first()
-        gonderen = db.query(models.Kullanici).filter_by(id=gd.gonderen_id).first()
-        grup_adi = grup.grup_adi if grup else f"Grup #{gd.grup_id}"
-        gonderen_isim = gonderen.isim if gonderen else "Bir arkadaşın"
+    gruplar_db = {g.id: g for g in db.query(models.Grup).filter(models.Grup.id.in_(grup_idleri)).all()}
+    kullanicilar_db = {u.id: u for u in db.query(models.Kullanici).filter(models.Kullanici.id.in_(davet_gonderen_idleri)).all()}
 
-        grup_davet_listesi.append({
+    grup_davet_listesi = [
+        {
             "davet_id": gd.id,
             "grup_id": gd.grup_id,
-            "grup_adi": grup_adi,
-            "gonderen_isim": gonderen_isim
-        })
+            "grup_adi": gruplar_db[gd.grup_id].grup_adi if gd.grup_id in gruplar_db else f"Grup #{gd.grup_id}",
+            "gonderen_isim": kullanicilar_db[gd.gonderen_id].isim if gd.gonderen_id in kullanicilar_db else "Bir arkadaşın"
+        }
+        for gd in grup_istekleri
+    ]
 
     return {
         "arkadaslar": arkadas_listesi,
@@ -586,7 +600,7 @@ def respond_friend_request(
 
 
 # ==========================================
-# 6. GRUP TAKVİMİ, ZAMAN ÇİZELGESİ & TEKLİF SİSTEMİ
+# 6. GRUP TAKVİMİ, ZAMAN ÇİZELGESİ & DB TEKLİF SİSTEMİ
 # ==========================================
 
 @app.get("/api/groups/{grup_id}/timeline")
@@ -604,25 +618,30 @@ def get_group_timeline(
     uye_idleri = [u.kullanici_id for u in uyelikler]
     uyeler = db.query(models.Kullanici).filter(models.Kullanici.id.in_(uye_idleri)).all()
 
-    uye_verileri = []
-    for u in uyeler:
-        etkinlikler = db.query(models.TakvimEtkinlik).filter_by(kullanici_id=u.id).all()
-        # Başlık gizlendi, sadece dolu/boş bilgisi aktarılıyor
-        gun_etkinlikleri = [
-            {
+    # Tüm üyelerin etkinliklerini tek seferde getiriyoruz
+    tum_etkinlikler = db.query(models.TakvimEtkinlik).filter(
+        models.TakvimEtkinlik.kullanici_id.in_(uye_idleri)
+    ).all()
+
+    uye_etkinlik_haritasi = {u.id: [] for u in uyeler}
+    for e in tum_etkinlikler:
+        if e.baslangic.strftime("%Y-%m-%d") == tarih:
+            uye_etkinlik_haritasi[e.kullanici_id].append({
                 "id": e.id,
                 "baslangic": e.baslangic.strftime("%H:%M"),
                 "bitis": e.bitis.strftime("%H:%M"),
                 "dolu_mu": True
-            }
-            for e in etkinlikler if e.baslangic.strftime("%Y-%m-%d") == tarih
-        ]
-        uye_verileri.append({
+            })
+
+    uye_verileri = [
+        {
             "kullanici_id": u.id,
             "isim": u.isim,
             "kullanici_adi": u.kullanici_adi,
-            "etkinlikler": gun_etkinlikleri
-        })
+            "etkinlikler": uye_etkinlik_haritasi.get(u.id, [])
+        }
+        for u in uyeler
+    ]
 
     return {
         "tarih": tarih,
@@ -640,23 +659,28 @@ def propose_group_plan(
     if not is_member:
         raise HTTPException(status_code=403, detail="Üyesi olmadığınız bir gruba buluşma teklifi edemezsiniz.")
 
-    grup = db.query(models.Grup).filter_by(id=req.grup_id).first()
+    yeni_teklif = models.GrupTeklif(
+        grup_id=req.grup_id,
+        teklif_eden_id=current_user.id,
+        baslik=req.baslik,
+        tarih=req.tarih,
+        baslangic_saat=req.baslangic_saat,
+        bitis_saat=req.bitis_saat
+    )
+    db.add(yeni_teklif)
+    db.commit()
+    db.refresh(yeni_teklif)
 
-    yeni_teklif = {
-        "id": len(teklifler_db) + 1,
-        "grup_id": req.grup_id,
-        "grup_adi": grup.grup_adi if grup else "Grup",
-        "teklif_eden_id": current_user.id,
-        "teklif_eden_isim": current_user.isim,
-        "baslik": req.baslik,
-        "tarih": req.tarih,
-        "baslangic_saat": req.baslangic_saat,
-        "bitis_saat": req.bitis_saat,
-        "katilanlar": [current_user.id],
-        "reddedenler": []
-    }
-    teklifler_db.append(yeni_teklif)
-    return {"message": "Buluşma teklifi gruba iletildi!"}
+    # Teklifi açan kullanıcı varsayılan olarak kabul etmiş sayılır
+    kurucu_yanit = models.GrupTeklifYanit(
+        teklif_id=yeni_teklif.id,
+        kullanici_id=current_user.id,
+        kabul_mu=True
+    )
+    db.add(kurucu_yanit)
+    db.commit()
+
+    return {"message": "Buluşma teklifi DB'ye kaydedildi ve gruba iletildi!", "id": yeni_teklif.id}
 
 
 @app.get("/api/users/group-proposals")
@@ -667,12 +691,31 @@ def get_user_group_proposals(
     uyelikler = db.query(models.GrupUye).filter_by(kullanici_id=current_user.id).all()
     grup_idleri = [u.grup_id for u in uyelikler]
 
-    ilgili_teklifler = [
-        t for t in teklifler_db
-        if t["grup_id"] in grup_idleri and current_user.id not in t["katilanlar"] and current_user.id not in t[
-            "reddedenler"]
-    ]
-    return ilgili_teklifler
+    # Kullanıcının üye olduğu gruplardaki teklifler
+    teklifler = db.query(models.GrupTeklif).options(
+        joinedload(models.GrupTeklif.grup),
+        joinedload(models.GrupTeklif.teklif_eden),
+        joinedload(models.GrupTeklif.yanitlar)
+    ).filter(models.GrupTeklif.grup_id.in_(grup_idleri)).all()
+
+    bekleyenler = []
+    for t in teklifler:
+        # Kullanıcı bu teklife daha önce yanıt verdi mi kontrol et
+        kullanici_yaniti = next((y for y in t.yanitlar if y.kullanici_id == current_user.id), None)
+        if not kullanici_yaniti:
+            bekleyenler.append({
+                "id": t.id,
+                "grup_id": t.grup_id,
+                "grup_adi": t.grup.grup_adi if t.grup else "Grup",
+                "teklif_eden_id": t.teklif_eden_id,
+                "teklif_eden_isim": t.teklif_eden.isim if t.teklif_eden else "Üye",
+                "baslik": t.baslik,
+                "tarih": t.tarih,
+                "baslangic_saat": t.baslangic_saat,
+                "bitis_saat": t.bitis_saat
+            })
+
+    return bekleyenler
 
 
 @app.post("/api/groups/respond-proposal")
@@ -681,33 +724,49 @@ def respond_group_proposal(
         current_user: models.Kullanici = Depends(get_current_user),
         db: Session = Depends(get_db)
 ):
-    teklif = next((t for t in teklifler_db if t["id"] == req.teklif_id), None)
+    teklif = db.query(models.GrupTeklif).options(
+        joinedload(models.GrupTeklif.grup)
+    ).filter_by(id=req.teklif_id).first()
+
     if not teklif:
         raise HTTPException(status_code=404, detail="Teklif bulunamadı.")
 
-    is_member = db.query(models.GrupUye).filter_by(grup_id=teklif["grup_id"], kullanici_id=current_user.id).first()
+    is_member = db.query(models.GrupUye).filter_by(grup_id=teklif.grup_id, kullanici_id=current_user.id).first()
     if not is_member:
         raise HTTPException(status_code=403, detail="Bu teklifin ait olduğu grubun üyesi değilsiniz.")
 
-    if req.kabul_mu:
-        if current_user.id not in teklif["katilanlar"]:
-            teklif["katilanlar"].append(current_user.id)
+    # Yanıtı DB'ye kaydet
+    mevcut_yanit = db.query(models.GrupTeklifYanit).filter_by(
+        teklif_id=req.teklif_id,
+        kullanici_id=current_user.id
+    ).first()
 
-        baslangic_dt = datetime.strptime(f"{teklif['tarih']} {teklif['baslangic_saat']}", "%Y-%m-%d %H:%M")
-        bitis_dt = datetime.strptime(f"{teklif['tarih']} {teklif['bitis_saat']}", "%Y-%m-%d %H:%M")
+    if mevcut_yanit:
+        mevcut_yanit.kabul_mu = req.kabul_mu
+    else:
+        yeni_yanit = models.GrupTeklifYanit(
+            teklif_id=req.teklif_id,
+            kullanici_id=current_user.id,
+            kabul_mu=req.kabul_mu
+        )
+        db.add(yeni_yanit)
+
+    # Kabul edildiyse takvime etkinlik olarak işle
+    if req.kabul_mu:
+        baslangic_dt = datetime.strptime(f"{teklif.tarih} {teklif.baslangic_saat}", "%Y-%m-%d %H:%M")
+        bitis_dt = datetime.strptime(f"{teklif.tarih} {teklif.bitis_saat}", "%Y-%m-%d %H:%M")
 
         yeni_etk = models.TakvimEtkinlik(
             kullanici_id=current_user.id,
-            baslik=f"Grup: {teklif['baslik']} ({teklif['grup_adi']})",
+            baslik=f"Grup: {teklif.baslik} ({teklif.grup.grup_adi if teklif.grup else 'Grup'})",
             baslangic=baslangic_dt,
             bitis=bitis_dt,
             oncelik=2,
-            grup_id=teklif["grup_id"]
+            grup_id=teklif.grup_id
         )
         db.add(yeni_etk)
-        db.commit()
-        return {"message": "Teklifi kabul ettiniz ve takviminize eklendi!"}
-    else:
-        if current_user.id not in teklif["reddedenler"]:
-            teklif["reddedenler"].append(current_user.id)
-        return {"message": "Teklifi reddettiniz."}
+
+    db.commit()
+    return {
+        "message": "Teklifi kabul ettiniz ve takviminize eklendi!" if req.kabul_mu else "Teklifi reddettiniz."
+    }
