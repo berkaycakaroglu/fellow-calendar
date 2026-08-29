@@ -31,20 +31,6 @@ import {
 export default function Calendar({ user }) {
   const [activeTab, setActiveTab] = useState('personal');
 
-  // Token ve API Adresi
-  const token = user?.access_token || user?.token || localStorage.getItem('token') || '';
-  const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:8000';
-
-  // Güvenli Fetch Yardımcısı (JWT Token ekler)
-  const authFetch = async (endpoint, options = {}) => {
-    const headers = {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(options.headers || {}),
-    };
-    return fetch(`${API_BASE}${endpoint}`, { ...options, headers });
-  };
-
   // Canlı Tarih Yönetimi
   const today = new Date();
   const currentYear = today.getFullYear();
@@ -85,16 +71,59 @@ export default function Calendar({ user }) {
     }
   };
 
-  // Veri State'leri
-  const [events, setEvents] = useState([]);
-  const [friendsData, setFriendsData] = useState({ arkadaslar: [], istekler: [], grup_istekleri: [] });
-  const [groups, setGroups] = useState([]);
+  // MOCK VERİ STATE'LERİ
+  const [events, setEvents] = useState([
+    {
+      id: 1,
+      baslik: 'Yapay Zeka & Bitirme Projesi Sunumu',
+      baslangic: `${currentYearVal}-${formattedMonth}-${String(todayDateNumber).padStart(2, '0')}T10:00:00`,
+      bitis: `${currentYearVal}-${formattedMonth}-${String(todayDateNumber).padStart(2, '0')}T11:30:00`,
+      oncelik: 1
+    },
+    {
+      id: 2,
+      baslik: 'Takım Haftalık Değerlendirmesi',
+      baslangic: `${currentYearVal}-${formattedMonth}-${String(todayDateNumber).padStart(2, '0')}T15:00:00`,
+      bitis: `${currentYearVal}-${formattedMonth}-${String(todayDateNumber).padStart(2, '0')}T16:30:00`,
+      oncelik: 2
+    }
+  ]);
+
+  const [friendsData, setFriendsData] = useState({
+    arkadaslar: [
+      { id: 2, isim: 'Ahmet Yılmaz', kullanici_adi: 'ahmety' },
+      { id: 3, isim: 'Zeynep Kaya', kullanici_adi: 'zeynepk' },
+      { id: 4, isim: 'Can Demir', kullanici_adi: 'candemir' }
+    ],
+    istekler: [
+      { istek_id: 101, kullanici_adi: 'mert_dev' }
+    ],
+    grup_istekleri: [
+      { davet_id: 201, grup_adi: 'Yazılım Ekibi', gonderen_isim: 'Ahmet Yılmaz' }
+    ]
+  });
+
+  const [groups, setGroups] = useState([
+    { id: 1, grup_adi: 'LetsMeet Geliştirici Grubu', uye_sayisi: 4, davet_kodu: 'LM-2026', olusturan_id: user?.id || 1 },
+    { id: 2, grup_adi: 'Üniversite Çalışma Grubu', uye_sayisi: 3, davet_kodu: 'STUDY-99', olusturan_id: 99 }
+  ]);
+
   const [selectedGroup, setSelectedGroup] = useState(null);
 
   // Grup Takvimi & Teklifler
   const [groupTimeline, setGroupTimeline] = useState([]);
   const [groupCommonSlots, setGroupCommonSlots] = useState([]);
-  const [groupProposals, setGroupProposals] = useState([]);
+  const [groupProposals, setGroupProposals] = useState([
+    {
+      id: 501,
+      baslik: 'Kahve & Sohbet',
+      grup_adi: 'LetsMeet Geliştirici Grubu',
+      teklif_eden_isim: 'Zeynep Kaya',
+      tarih: selectedDateStr,
+      baslangic_saat: '17:00',
+      bitis_saat: '18:30'
+    }
+  ]);
 
   // Modallar ve Formlar
   const [isAddPlanModalOpen, setIsAddPlanModalOpen] = useState(false);
@@ -151,258 +180,151 @@ export default function Calendar({ user }) {
     setDialogConfig(prev => ({ ...prev, isOpen: false }));
   };
 
-  // API İstekleri (JWT Token Korumalı)
-  const fetchEvents = async () => {
-    try {
-      const res = await authFetch('/api/users/events');
-      if (res.ok) setEvents(await res.json());
-    } catch (e) { console.error(e); }
-  };
-
-  const fetchFriends = async () => {
-    try {
-      const res = await authFetch('/api/users/friends');
-      if (res.ok) setFriendsData(await res.json());
-    } catch (e) { console.error(e); }
-  };
-
-  const fetchGroups = async () => {
-    try {
-      const res = await authFetch('/api/users/groups');
-      if (res.ok) {
-        const data = await res.json();
-        setGroups(data);
-        if (data.length > 0 && !selectedGroup) setSelectedGroup(data[0]);
-      }
-    } catch (e) { console.error(e); }
-  };
-
-  const fetchProposals = async () => {
-    try {
-      const res = await authFetch('/api/users/group-proposals');
-      if (res.ok) setGroupProposals(await res.json());
-    } catch (e) { console.error(e); }
-  };
-
-  const fetchGroupCalendarData = async () => {
-    if (!selectedGroup) return;
-    try {
-      const timelineRes = await authFetch(`/api/groups/${selectedGroup.id}/timeline?tarih=${selectedDateStr}`);
-      if (timelineRes.ok) {
-        const tData = await timelineRes.json();
-        setGroupTimeline(tData.uyeler || []);
-      }
-
-      const slotsRes = await authFetch(`/api/groups/${selectedGroup.id}/common-slots?tarih=${selectedDateStr}`);
-      if (slotsRes.ok) {
-        const sData = await slotsRes.json();
-        setGroupCommonSlots(sData.uygun_saat_araliklari || []);
-      }
-    } catch (e) { console.error(e); }
-  };
-
+  // Başlangıç Grubu Ayarı
   useEffect(() => {
-    fetchEvents();
-    fetchFriends();
-    fetchGroups();
-    fetchProposals();
-  }, [user]);
-
-  useEffect(() => {
-    if (activeTab === 'group_calendar' && selectedGroup) {
-      fetchGroupCalendarData();
+    if (groups.length > 0 && !selectedGroup) {
+      setSelectedGroup(groups[0]);
     }
-  }, [activeTab, selectedGroup, selectedDay, currentMonthIndex, currentYearVal]);
+  }, [groups]);
 
-  const handleAddPersonalPlan = async (e) => {
+  // Grup Takvimi ve Ortak Saatleri Hesaplama (Tamamen Mock İstemci Mantığı)
+  useEffect(() => {
+    if (selectedGroup) {
+      setGroupTimeline([
+        {
+          kullanici_id: 1,
+          isim: user?.isim || 'Berkay Çakaroğlu',
+          kullanici_adi: user?.kullanici_adi || 'berkay',
+          etkinlikler: [{ id: 10, baslangic: '10:00', bitis: '11:30' }]
+        },
+        {
+          kullanici_id: 2,
+          isim: 'Ahmet Yılmaz',
+          kullanici_adi: 'ahmety',
+          etkinlikler: [{ id: 11, baslangic: '13:00', bitis: '14:30' }]
+        },
+        {
+          kullanici_id: 3,
+          isim: 'Zeynep Kaya',
+          kullanici_adi: 'zeynepk',
+          etkinlikler: []
+        }
+      ]);
+
+      setGroupCommonSlots([
+        '11:30 - 13:00',
+        '14:30 - 17:00',
+        '18:30 - 21:00'
+      ]);
+    }
+  }, [selectedGroup, selectedDay, currentMonthIndex, currentYearVal, user]);
+
+  const handleAddPersonalPlan = (e) => {
     e.preventDefault();
     if (!planForm.baslik.trim()) return;
 
-    const baslangic = `${selectedDateStr}T${planForm.baslaSaat}:00`;
-    const bitis = `${selectedDateStr}T${planForm.bitisSaat}:00`;
+    const newEvent = {
+      id: Date.now(),
+      baslik: planForm.baslik.trim(),
+      baslangic: `${selectedDateStr}T${planForm.baslaSaat}:00`,
+      bitis: `${selectedDateStr}T${planForm.bitisSaat}:00`,
+      oncelik: parseInt(planForm.oncelik)
+    };
 
-    try {
-      const res = await authFetch('/api/events', {
-        method: 'POST',
-        body: JSON.stringify({
-          baslik: planForm.baslik.trim(),
-          baslangic,
-          bitis,
-          oncelik: parseInt(planForm.oncelik),
-          grup_id: null
-        })
-      });
-
-      const data = await res.json();
-      if (res.ok) {
-        setIsAddPlanModalOpen(false);
-        setPlanForm({ baslik: '', baslaSaat: '14:00', bitisSaat: '16:00', oncelik: 1 });
-        fetchEvents();
-        if (selectedGroup) fetchGroupCalendarData();
-      } else {
-        showAlert(data.detail || 'Plan eklenemedi.', 'Hata');
-      }
-    } catch {
-      showAlert('Sunucu hatası oluştu.', 'Hata');
-    }
+    setEvents(prev => [...prev, newEvent]);
+    setIsAddPlanModalOpen(false);
+    setPlanForm({ baslik: '', baslaSaat: '14:00', bitisSaat: '16:00', oncelik: 1 });
+    showAlert('Plan başarıyla eklendi!', 'Başarılı');
   };
 
   const handleDeleteEvent = (id) => {
     showConfirm(
       'Bu planı silmek istediğinize emin misiniz?',
-      async () => {
-        try {
-          const res = await authFetch(`/api/events/${id}`, { method: 'DELETE' });
-          if (res.ok) {
-            fetchEvents();
-            if (selectedGroup) fetchGroupCalendarData();
-          }
-        } catch (e) { console.error(e); }
+      () => {
+        setEvents(prev => prev.filter(e => e.id !== id));
+        showAlert('Plan takviminizden kaldırıldı.', 'Silindi');
       },
       'Planı Sil',
       true
     );
   };
 
-  const handleSendProposal = async () => {
+  const handleSendProposal = () => {
     if (!proposalTitle.trim() || !selectedSlotForProposal) {
       showAlert('Lütfen bir başlık yazın ve saat aralığı seçin.', 'Eksik Bilgi');
       return;
     }
     const [start, end] = selectedSlotForProposal.split(' - ');
 
-    try {
-      const res = await authFetch('/api/groups/propose-plan', {
-        method: 'POST',
-        body: JSON.stringify({
-          grup_id: selectedGroup.id,
-          baslik: proposalTitle.trim(),
-          tarih: selectedDateStr,
-          baslangic_saat: start,
-          bitis_saat: end
-        })
-      });
+    const newProposal = {
+      id: Date.now(),
+      baslik: proposalTitle.trim(),
+      grup_adi: selectedGroup?.grup_adi || 'Grup',
+      teklif_eden_isim: user?.isim || 'Siz',
+      tarih: selectedDateStr,
+      baslangic_saat: start,
+      bitis_saat: end
+    };
 
-      if (res.ok) {
-        showAlert('Buluşma teklifi gruba iletildi! Diğer üyeler oylayabilir.', 'Teklif Gönderildi');
-        setProposalTitle('');
-        setShowProposalBox(false);
-        fetchProposals();
-      }
-    } catch {
-      showAlert('Teklif gönderilemedi.', 'Hata');
+    setGroupProposals(prev => [newProposal, ...prev]);
+    showAlert('Buluşma teklifi gruba iletildi! Diğer üyeler oylayabilir.', 'Teklif Gönderildi');
+    setProposalTitle('');
+    setShowProposalBox(false);
+  };
+
+  const handleRespondProposal = (teklifId, kabulMu) => {
+    setGroupProposals(prev => prev.filter(p => p.id !== teklifId));
+    if (kabulMu) {
+      showAlert('Buluşma teklifi kabul edildi ve takviminize eklendi!', 'Kabul Edildi');
+    } else {
+      showAlert('Buluşma teklifi reddedildi.', 'Reddedildi');
     }
   };
 
-  const handleRespondProposal = async (teklifId, kabulMu) => {
-    try {
-      const res = await authFetch('/api/groups/respond-proposal', {
-        method: 'POST',
-        body: JSON.stringify({
-          teklif_id: teklifId,
-          kabul_mu: kabulMu
-        })
-      });
-      const data = await res.json();
-      if (res.ok) {
-        showAlert(data.message, 'Yanıt İletildi');
-        fetchProposals();
-        fetchEvents();
-      }
-    } catch {
-      showAlert('İşlem başarısız.', 'Hata');
-    }
-  };
-
-  const handleInviteFriendToGroup = async (e) => {
+  const handleInviteFriendToGroup = (e) => {
     e.preventDefault();
     if (!selectedGroupIdToInvite || !inviteModalFriend) return;
+    showAlert(`${inviteModalFriend.isim} kullanıcısına grup daveti başarıyla iletildi!`, 'Davet Gönderildi');
+    setInviteModalFriend(null);
+    setSelectedGroupIdToInvite('');
+  };
 
-    try {
-      const res = await authFetch('/api/groups/invite-friend', {
-        method: 'POST',
-        body: JSON.stringify({
-          grup_id: parseInt(selectedGroupIdToInvite),
-          davet_edilen_id: inviteModalFriend.id
-        })
-      });
+  const handleRespondGroupInvite = (davetId, kabulMu) => {
+    const invite = friendsData.grup_istekleri.find(i => i.davet_id === davetId);
+    setFriendsData(prev => ({
+      ...prev,
+      grup_istekleri: prev.grup_istekleri.filter(i => i.davet_id !== davetId)
+    }));
 
-      const data = await res.json();
-      if (res.ok) {
-        showAlert(`${inviteModalFriend.isim} kullanıcısına grup daveti başarıyla iletildi!`, 'Davet Gönderildi');
-        setInviteModalFriend(null);
-        setSelectedGroupIdToInvite('');
-      } else {
-        showAlert(data.detail || 'Davet gönderilemedi.', 'Hata');
-      }
-    } catch {
-      showAlert('Sunucu hatası oluştu.', 'Hata');
+    if (kabulMu && invite) {
+      setGroups(prev => [
+        ...prev,
+        { id: Date.now(), grup_adi: invite.grup_adi, uye_sayisi: 2, davet_kodu: 'LM-' + Math.floor(1000 + Math.random() * 9000), olusturan_id: 2 }
+      ]);
+      showAlert(`"${invite.grup_adi}" grubuna katıldınız!`, 'Grup Daveti');
+    } else {
+      showAlert('Grup daveti reddedildi.', 'Grup Daveti');
     }
   };
 
-  const handleRespondGroupInvite = async (davetId, kabulMu) => {
-    try {
-      const res = await authFetch('/api/groups/respond-invite', {
-        method: 'POST',
-        body: JSON.stringify({
-          davet_id: davetId,
-          kabul_mu: kabulMu
-        })
-      });
-      const data = await res.json();
-      showAlert(data.message, 'Grup Daveti');
-      fetchFriends();
-      fetchGroups();
-    } catch {
-      showAlert('İşlem başarısız.', 'Hata');
-    }
-  };
-
-  const handleUpdateGroup = async (e) => {
+  const handleUpdateGroup = (e) => {
     e.preventDefault();
     if (!editGroupName.trim() || !editingGroup) return;
 
-    try {
-      const res = await authFetch(`/api/groups/${editingGroup.id}`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          grup_adi: editGroupName.trim(),
-          aciklama: editingGroup.aciklama || ''
-        })
-      });
-
-      const data = await res.json();
-      if (res.ok) {
-        showAlert(data.message, 'Başarılı');
-        setEditingGroup(null);
-        fetchGroups();
-      } else {
-        showAlert(data.detail || 'Grup güncellenemedi.', 'Hata');
-      }
-    } catch {
-      showAlert('Sunucu hatası oluştu.', 'Hata');
-    }
+    setGroups(prev => prev.map(g => g.id === editingGroup.id ? { ...g, grup_adi: editGroupName.trim() } : g));
+    showAlert('Grup bilgisi başarıyla güncellendi.', 'Başarılı');
+    setEditingGroup(null);
   };
 
   const handleDeleteGroup = (grupId) => {
     showConfirm(
       'Bu grubu silmek istediğinize emin misiniz? Gruptaki tüm üyeler ve etkinlik bağlantıları kaldırılacaktır.',
-      async () => {
-        try {
-          const res = await authFetch(`/api/groups/${grupId}`, {
-            method: 'DELETE'
-          });
-
-          const data = await res.json();
-          if (res.ok) {
-            showAlert(data.message, 'Grup Silindi');
-            fetchGroups();
-          } else {
-            showAlert(data.detail || 'Grup silinemedi.', 'Hata');
-          }
-        } catch {
-          showAlert('Sunucu hatası oluştu.', 'Hata');
+      () => {
+        setGroups(prev => prev.filter(g => g.id !== grupId));
+        if (selectedGroup?.id === grupId) {
+          setSelectedGroup(groups.find(g => g.id !== grupId) || null);
         }
+        showAlert('Grup başarıyla silindi.', 'Grup Silindi');
       },
       'Grubu Sil',
       true
@@ -729,7 +651,7 @@ export default function Calendar({ user }) {
                 <span style={{ fontSize: '12px', color: '#5E6678' }}>Üyelerin 24 saatlik meşguliyet durumu</span>
               </div>
 
-              {/* Meşguliyet Listesi (Madde 11: Özel başlıklar gizli) */}
+              {/* Meşguliyet Listesi */}
               <div>
                 <span style={{ fontSize: '11px', fontWeight: '800', color: '#E53935', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '8px' }}>
                   <AlertCircle size={13} /> Üye Meşguliyetleri (Dolu Saatler)
@@ -969,7 +891,7 @@ export default function Calendar({ user }) {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {groups.map(g => {
-                  const isOwner = g.olusturan_id === user?.id;
+                  const isOwner = g.olusturan_id === (user?.id || 1);
 
                   return (
                     <div
@@ -1057,25 +979,19 @@ export default function Calendar({ user }) {
                 <h4 style={{ fontSize: '15px', fontWeight: '800', color: '#14171F', margin: 0 }}>Yeni Grup Kur</h4>
               </div>
 
-              <form onSubmit={async (e) => {
+              <form onSubmit={(e) => {
                 e.preventDefault();
                 if (!newGroupName.trim()) return;
-                try {
-                  const res = await authFetch('/api/groups/create', {
-                    method: 'POST',
-                    body: JSON.stringify({ grup_adi: newGroupName.trim() })
-                  });
-                  const d = await res.json();
-                  if (res.ok) {
-                    showAlert(`"${newGroupName}" grubu başarıyla kuruldu! Davet kodunuz: ${d.davet_kodu}`, 'Grup Kuruldu');
-                    setNewGroupName('');
-                    fetchGroups();
-                  } else {
-                    showAlert(d.detail || 'Grup oluşturulamadı.', 'Hata');
-                  }
-                } catch {
-                  showAlert('Sunucu hatası oluştu.', 'Hata');
-                }
+                const newG = {
+                  id: Date.now(),
+                  grup_adi: newGroupName.trim(),
+                  uye_sayisi: 1,
+                  davet_kodu: 'LM-' + Math.floor(1000 + Math.random() * 9000),
+                  olusturan_id: user?.id || 1
+                };
+                setGroups(prev => [...prev, newG]);
+                showAlert(`"${newGroupName}" grubu kuruldu! Davet Kodu: ${newG.davet_kodu}`, 'Grup Kuruldu');
+                setNewGroupName('');
               }} style={{ display: 'flex', gap: '10px' }}>
                 <input
                   type="text"
@@ -1100,25 +1016,11 @@ export default function Calendar({ user }) {
                 <h4 style={{ fontSize: '15px', fontWeight: '800', color: '#14171F', margin: 0 }}>Davet Kodu ile Katıl</h4>
               </div>
 
-              <form onSubmit={async (e) => {
+              <form onSubmit={(e) => {
                 e.preventDefault();
                 if (!joinToken.trim()) return;
-                try {
-                  const res = await authFetch('/api/groups/join', {
-                    method: 'POST',
-                    body: JSON.stringify({ token: joinToken.trim() })
-                  });
-                  const data = await res.json();
-                  if (res.ok) {
-                    showAlert(data.message, 'Gruba Katıldınız');
-                    setJoinToken('');
-                    fetchGroups();
-                  } else {
-                    showAlert(data.detail || 'Gruba katılınamadı.', 'Hata');
-                  }
-                } catch {
-                  showAlert('Sunucu hatası oluştu.', 'Hata');
-                }
+                showAlert(`"${joinToken.toUpperCase()}" kodlu gruba katılım sağlandı!`, 'Gruba Katıldınız');
+                setJoinToken('');
               }} style={{ display: 'flex', gap: '10px' }}>
                 <input
                   type="text"
@@ -1201,24 +1103,11 @@ export default function Calendar({ user }) {
                 <h4 style={{ fontSize: '15px', fontWeight: '800', color: '#14171F', margin: 0 }}>Yeni Arkadaş Ekle</h4>
               </div>
 
-              <form onSubmit={async (e) => {
+              <form onSubmit={(e) => {
                 e.preventDefault();
-                try {
-                  const res = await authFetch('/api/friends/request', {
-                    method: 'POST',
-                    body: JSON.stringify({ hedef_kullanici_adi: newFriendUsername.trim() })
-                  });
-                  const d = await res.json();
-                  if (res.ok) {
-                    showAlert(d.message, 'İstek Gönderildi');
-                    setNewFriendUsername('');
-                    fetchFriends();
-                  } else {
-                    showAlert(d.detail || 'İstek gönderilemedi.', 'Hata');
-                  }
-                } catch {
-                  showAlert('Sunucu hatası oluştu.', 'Hata');
-                }
+                if (!newFriendUsername.trim()) return;
+                showAlert(`@${newFriendUsername.trim()} kullanıcısına arkadaşlık isteği gönderildi!`, 'İstek Gönderildi');
+                setNewFriendUsername('');
               }} style={{ display: 'flex', gap: '10px' }}>
                 <input
                   type="text"
@@ -1251,19 +1140,20 @@ export default function Calendar({ user }) {
                     <div key={req.istek_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#F8F7F4', borderRadius: '10px' }}>
                       <span style={{ fontSize: '12px', fontWeight: '700' }}>@{req.kullanici_adi}</span>
                       <div style={{ display: 'flex', gap: '6px' }}>
-                        <button onClick={async () => {
-                          await authFetch('/api/friends/respond', {
-                            method: 'POST',
-                            body: JSON.stringify({ istek_id: req.istek_id, kabul_mu: true })
-                          });
-                          fetchFriends();
+                        <button onClick={() => {
+                          setFriendsData(prev => ({
+                            ...prev,
+                            arkadaslar: [...prev.arkadaslar, { id: Date.now(), isim: req.kullanici_adi, kullanici_adi: req.kullanici_adi }],
+                            istekler: prev.istekler.filter(i => i.istek_id !== req.istek_id)
+                          }));
+                          showAlert(`@${req.kullanici_adi} ile artık arkadaşsınız!`, 'Kabul Edildi');
                         }} style={{ background: '#00875A', color: '#FFF', border: 'none', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer' }}><Check size={12} /></button>
-                        <button onClick={async () => {
-                          await authFetch('/api/friends/respond', {
-                            method: 'POST',
-                            body: JSON.stringify({ istek_id: req.istek_id, kabul_mu: false })
-                          });
-                          fetchFriends();
+                        <button onClick={() => {
+                          setFriendsData(prev => ({
+                            ...prev,
+                            istekler: prev.istekler.filter(i => i.istek_id !== req.istek_id)
+                          }));
+                          showAlert('Arkadaşlık isteği silindi.', 'Reddedildi');
                         }} style={{ background: '#E53935', color: '#FFF', border: 'none', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer' }}><X size={12} /></button>
                       </div>
                     </div>
